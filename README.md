@@ -2,8 +2,6 @@
 
 A full-stack **Django** web application that automates classroom attendance using **live face recognition (OpenCV)**, with separate workspaces for **teachers** and **students**, analytics dashboards and audit-friendly records. All face processing runs locally — no external recognition API.
 
-> Major project · replace this line with your name, roll number, guide and college.
-
 ---
 
 ## Features
@@ -50,19 +48,22 @@ There is **no bundled face dataset**: biometric data comes only from consenting 
 ## Setup
 
 ```bash
-# 1. Create and activate a virtual environment
+# 1.Clone repository 
+git clone https://github.com/TechieAakanksha/AttendIQ.git
+cd AttendIQ
+# 2. Create and activate a virtual environment
 python -m venv venv
 # Windows:      venv\Scripts\activate
 # macOS/Linux:  source venv/bin/activate
 
-# 2. Install dependencies
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 3. Create the database and demo data
+# 4. Create the database and demo data
 python manage.py migrate
 python manage.py seed_demo --with-students
 
-# 4. Run
+# 5. Run
 python manage.py runserver
 ```
 
@@ -99,6 +100,10 @@ attendance/
 templates/attendance/   HTML templates (light theme)
 static/attendance/css/  style.css (design system)
 ```
+
+## Screenshots
+![Dashboard](screenshots/Dashboard.png)
+![Analytics](screenshots/Analytics.png)
 
 ## Configuration & deployment notes
 
