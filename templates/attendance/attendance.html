@@ -1,0 +1,88 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Mark attendance{% endblock %}
+{% block crumb %}Mark attendance{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow">Manual entry</div><h1 class="page-title">Mark attendance</h1>
+    <p class="page-sub">Choose a class slot and date, then mark each student. Saving again edits the same records.</p></div>
+</div>
+
+{% if not assignments %}
+  <div class="card-soft p-4"><div class="empty-state"><i class="bi bi-calendar-plus"></i>
+    Add a class schedule before marking attendance.<br><a href="{% url 'add_schedule' %}" class="btn btn-primary btn-sm mt-3">Add class schedule</a></div></div>
+{% else %}
+<form method="post">
+  {% csrf_token %}
+  <div class="card-soft p-3 mb-3">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-7"><label class="form-label">Subject &amp; section</label>
+        <select name="assignment" id="assignmentSelect" class="form-select" required>
+          <option value="">Choose subject &amp; section</option>
+          {% for item in assignments %}<option value="{{ item.id }}" {% if selected_assignment == item.id|stringformat:'s' %}selected{% endif %}>{{ item.subject.code }} · {{ item.subject.name }} · Section {{ item.section }} · {{ item.get_weekday_display }}</option>{% endfor %}
+        </select></div>
+      <div class="col-md-3"><label class="form-label">Date</label><input type="date" name="date" id="dateInput" value="{{ selected_date }}" class="form-control" required></div>
+      <div class="col-md-2">{% if already_marked %}<span class="badge text-bg-info py-2 w-100">Already marked · editing</span>{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="card-soft">
+    <div class="p-3 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+      <div><strong>{{ rows|length }} student{{ rows|length|pluralize }}</strong> ·
+        <span class="text-success fw-semibold" id="presentCount">0</span> present ·
+        <span class="text-danger fw-semibold" id="absentCount">0</span> absent</div>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-success" onclick="markAll('present')">All present</button>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="markAll('absent')">All absent</button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead><tr><th>Student</th><th>Class</th><th class="text-center">Status</th></tr></thead>
+        <tbody>
+        {% for r in rows %}
+          <tr>
+            <td><span class="avatar me-2">{{ r.student.name|slice:":1"|upper }}</span>{{ r.student.name }} <small class="text-muted ms-1">{{ r.student.roll_number }}</small></td>
+            <td class="text-muted">{{ r.student.department }} · Sem {{ r.student.semester }} · Sec {{ r.student.section }}</td>
+            <td class="text-center"><div class="btn-group">
+              <input type="radio" class="btn-check" name="status_{{ r.student.id }}" id="p{{ r.student.id }}" value="present" {% if r.present %}checked{% endif %}>
+              <label class="btn btn-outline-success btn-sm" for="p{{ r.student.id }}">Present</label>
+              <input type="radio" class="btn-check" name="status_{{ r.student.id }}" id="a{{ r.student.id }}" value="absent" {% if not r.present %}checked{% endif %}>
+              <label class="btn btn-outline-danger btn-sm" for="a{{ r.student.id }}">Absent</label>
+            </div></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3"><div class="empty-state"><i class="bi bi-people"></i>No students for this section. <a href="{% url 'add_student' %}">Add one</a>.</div></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="p-3 text-end"><button class="btn btn-primary px-4" {% if not rows %}disabled{% endif %}><i class="bi bi-save me-1"></i> Save attendance</button></div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function markAll(val) {
+    document.querySelectorAll('input[type=radio][value="' + val + '"]').forEach(r => r.checked = true);
+    updateCount();
+  }
+  function updateCount() {
+    const p = document.getElementById('presentCount'), a = document.getElementById('absentCount');
+    if (!p || !a) return;
+    p.textContent = document.querySelectorAll('input[type=radio][value="present"]:checked').length;
+    a.textContent = document.querySelectorAll('input[type=radio][value="absent"]:checked').length;
+  }
+  function reloadFor() {
+    const date = document.getElementById('dateInput').value, asg = document.getElementById('assignmentSelect').value;
+    location.href = '?date=' + encodeURIComponent(date) + '&assignment=' + encodeURIComponent(asg);
+  }
+  document.querySelectorAll('input[type=radio]').forEach(r => r.addEventListener('change', updateCount));
+  const dateInput = document.getElementById('dateInput'), asgSelect = document.getElementById('assignmentSelect');
+  if (dateInput) dateInput.addEventListener('change', reloadFor);
+  if (asgSelect) asgSelect.addEventListener('change', reloadFor);
+  updateCount();
+</script>
+{% endblock %}

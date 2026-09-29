@@ -1,0 +1,31 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Manage user IDs{% endblock %}
+{% block crumb %}Manage user IDs{% endblock %}
+
+{% block content %}
+<div class="page-head"><div><div class="eyebrow">Teacher controls</div><h1 class="page-title">Manage user IDs</h1>
+  <p class="page-sub">Update login names and reset passwords for students in your classes. Leave the password blank to keep it unchanged.</p></div></div>
+<div class="card-soft">
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Roll no.</th><th>Student name</th><th>User ID</th><th>New password</th><th></th></tr></thead>
+      <tbody>
+      {% for student in students %}
+        <tr>
+          <td class="text-muted">{{ student.roll_number }}</td>
+          <td><input form="f{{ student.id }}" name="name" class="form-control" value="{{ student.name }}" required></td>
+          <td><input form="f{{ student.id }}" name="username" class="form-control" value="{{ student.user.username }}" required></td>
+          <td><input form="f{{ student.id }}" type="password" name="password" class="form-control" placeholder="Leave blank to keep" autocomplete="new-password"></td>
+          <td class="text-end">
+            <form id="f{{ student.id }}" method="post" class="m-0">{% csrf_token %}<input type="hidden" name="student_id" value="{{ student.id }}">
+              <button class="btn btn-sm btn-primary"><i class="bi bi-check2 me-1"></i> Save</button></form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5"><div class="empty-state"><i class="bi bi-person-gear"></i>Add students first to manage their login profiles.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

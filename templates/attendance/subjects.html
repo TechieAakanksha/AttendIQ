@@ -1,0 +1,28 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Subjects{% endblock %}
+{% block crumb %}Subjects{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow">Class configuration</div><h1 class="page-title">Subjects</h1>
+    <p class="page-sub">Add and edit the subjects you teach. Attendance and scans are linked to a subject.</p></div>
+  <a href="{% url 'add_subject' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i> Add subject</a>
+</div>
+<div class="card-soft">
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Code</th><th>Subject</th>{% if user.is_staff %}<th>Teacher</th>{% endif %}<th>Status</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>
+      {% for subject in subjects %}
+        <tr><td><span class="badge rounded-pill text-bg-dark">{{ subject.code }}</span></td><td><strong>{{ subject.name }}</strong></td>
+          {% if user.is_staff %}<td>{{ subject.teacher.get_full_name|default:subject.teacher.username }}</td>{% endif %}
+          <td>{% if subject.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}</td>
+          <td class="text-end"><a href="{% url 'edit_subject' subject.id %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil me-1"></i> Edit</a></td></tr>
+      {% empty %}
+        <tr><td colspan="5"><div class="empty-state"><i class="bi bi-book"></i>No subjects yet. <a href="{% url 'add_subject' %}">Add your first subject</a>.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

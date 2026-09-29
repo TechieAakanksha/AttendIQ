@@ -1,0 +1,28 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Add student{% endblock %}
+{% block crumb %}Add student{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center"><div class="col-xl-8">
+  <a href="{% url 'students' %}" class="small fw-semibold"><i class="bi bi-arrow-left"></i> Back to students</a>
+  <div class="mt-2 mb-4"><div class="eyebrow">Class management</div><h1 class="page-title">Add student</h1>
+    <p class="page-sub">A login is created automatically so the student can view their own attendance.</p></div>
+  <div class="card-soft p-4">
+    <form method="post">{% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label">Full name</label><input type="text" name="name" class="form-control" value="{{ form.name }}" required></div>
+        <div class="col-md-6"><label class="form-label">Roll number</label><input type="text" name="roll_number" class="form-control" value="{{ form.roll_number }}" required></div>
+        <div class="col-md-6"><label class="form-label">Department</label><input type="text" name="department" class="form-control" value="{{ form.department }}" placeholder="e.g. Computer Science" required></div>
+        <div class="col-md-3"><label class="form-label">Semester</label><input type="number" name="semester" min="1" max="12" class="form-control" value="{{ form.semester }}" required></div>
+        <div class="col-md-3"><label class="form-label">Section</label><input type="text" name="section" maxlength="20" class="form-control" value="{{ form.section|default:'A' }}" required></div>
+        <div class="col-12"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="{{ form.email }}" required></div>
+        <div class="col-12"><label class="form-label">Login password <span class="text-muted fw-normal">(optional)</span></label>
+          <input type="password" name="password" class="form-control" minlength="8" autocomplete="new-password" placeholder="Leave blank to use RollNumber@2026">
+          <div class="form-text">The username will be the lowercase roll number. Share the credentials securely.</div></div>
+      </div>
+      <div class="mt-4 d-flex gap-2"><button class="btn btn-primary px-4"><i class="bi bi-save me-1"></i> Save student</button>
+        <a href="{% url 'students' %}" class="btn btn-outline-secondary">Cancel</a></div>
+    </form>
+  </div>
+</div></div>
+{% endblock %}

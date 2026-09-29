@@ -1,0 +1,33 @@
+{% extends 'attendance/base.html' %}
+{% block title %}{{ heading }}{% endblock %}
+{% block crumb %}{{ heading }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center"><div class="col-xl-8">
+  <a href="{% url 'schedules' %}" class="small fw-semibold"><i class="bi bi-arrow-left"></i> Back to schedule</a>
+  <div class="mt-2 mb-4"><div class="eyebrow">Teaching timetable</div><h1 class="page-title">{{ heading }}</h1></div>
+  <div class="card-soft p-4">
+    {% if not subjects %}
+      <div class="empty-state"><i class="bi bi-book"></i>Create a subject before adding a class slot.<br><a href="{% url 'add_subject' %}" class="btn btn-primary btn-sm mt-3">Add subject</a></div>
+    {% else %}
+    <form method="post">{% csrf_token %}
+      <div class="mb-3"><label class="form-label">Subject</label>
+        <select name="subject" class="form-select" required><option value="">Choose subject</option>
+          {% for subject in subjects %}<option value="{{ subject.id }}">{{ subject.code }} · {{ subject.name }}</option>{% endfor %}</select></div>
+      <div class="row g-3">
+        <div class="col-md-4"><label class="form-label">Class section</label><input name="section" class="form-control" value="A" required></div>
+        <div class="col-md-4"><label class="form-label">Semester</label><input type="number" name="semester" class="form-control" min="1" max="12" value="5" required></div>
+        <div class="col-md-4"><label class="form-label">Weekday</label>
+          <select name="weekday" class="form-select">{% for value,label in weekdays %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label">Department</label><input name="department" class="form-control" placeholder="Computer Science"></div>
+        <div class="col-md-6"><label class="form-label">Room</label><input name="room" class="form-control" placeholder="A-307"></div>
+        <div class="col-md-6"><label class="form-label">Start time</label><input type="time" name="start_time" class="form-control" value="09:00" required></div>
+        <div class="col-md-6"><label class="form-label">End time</label><input type="time" name="end_time" class="form-control" value="10:00" required></div>
+      </div>
+      <div class="mt-4"><button class="btn btn-primary px-4"><i class="bi bi-save me-1"></i> Save schedule</button>
+        <a href="{% url 'schedules' %}" class="btn btn-outline-secondary ms-1">Cancel</a></div>
+    </form>
+    {% endif %}
+  </div>
+</div></div>
+{% endblock %}

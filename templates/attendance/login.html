@@ -1,0 +1,67 @@
+{% load static %}<!doctype html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · AttendIQ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{% static 'attendance/css/style.css' %}" rel="stylesheet">
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <section class="auth-pitch">
+        <div class="brand">
+          <span class="brand-mark"><i class="bi bi-person-bounding-box"></i></span>
+          <span><strong>Attend<span>IQ</span></strong><small>Smart attendance</small></span>
+        </div>
+        <h1>Attendance that recognises the whole classroom.</h1>
+        <p>An automated student attendance system with live face recognition, role-based workspaces and clear analytics for teachers and students.</p>
+        <div class="auth-feature"><i class="bi bi-camera-video"></i> Live OpenCV face scanning</div>
+        <div class="auth-feature"><i class="bi bi-bar-chart-line"></i> Real-time attendance analytics</div>
+        <div class="auth-feature"><i class="bi bi-shield-check"></i> Local, privacy-first processing</div>
+      </section>
+
+      <section class="auth-form">
+        <h2>Welcome back</h2>
+        <p class="text-muted mb-4">Sign in to your attendance workspace.</p>
+
+        {% if form.errors %}
+          <div class="alert alert-danger app-alert py-2"><i class="bi bi-exclamation-circle me-1"></i> Incorrect username or password. Please try again.</div>
+        {% endif %}
+        {% if next %}
+          <div class="alert alert-info app-alert py-2"><i class="bi bi-info-circle me-1"></i> Please sign in to continue.</div>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label" for="id_username">Username</label>
+            <div class="input-icon">
+              <i class="bi bi-person"></i>
+              <input id="id_username" type="text" name="username" class="form-control" autocomplete="username" autocapitalize="none" required autofocus placeholder="e.g. teacher01">
+            </div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label" for="id_password">Password</label>
+            <div class="input-icon">
+              <i class="bi bi-lock"></i>
+              <input id="id_password" type="password" name="password" class="form-control" autocomplete="current-password" required placeholder="Enter your password">
+            </div>
+          </div>
+          <input type="hidden" name="next" value="{{ next }}">
+          <button type="submit" class="btn btn-primary w-100 py-2">Sign in <i class="bi bi-arrow-right ms-1"></i></button>
+        </form>
+
+        <div class="demo-box">
+          <strong>Demo accounts</strong> (after <code>python manage.py seed_demo --with-students</code>)<br>
+          Teacher: <code>teacher01</code> / <code>AttendIQ@2026</code><br>
+          Student: <code>cs202601</code> / <code>Student@2026</code>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

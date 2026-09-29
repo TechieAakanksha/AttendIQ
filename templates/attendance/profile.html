@@ -1,0 +1,32 @@
+{% extends 'attendance/base.html' %}
+{% block title %}My profile{% endblock %}
+{% block crumb %}My profile{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center"><div class="col-xl-8">
+  <div class="mb-4"><div class="eyebrow">Account settings</div><h1 class="page-title">My profile</h1>
+    <p class="page-sub">Update your name, contact details and password.</p></div>
+  <div class="card-soft p-4">
+    <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
+      <span class="avatar avatar-top" style="width:56px;height:56px;font-size:1.1rem">{{ user.username|slice:':2'|upper }}</span>
+      <div><strong class="fs-5">{{ user.get_full_name|default:user.username }}</strong><div class="text-muted small">@{{ user.username }} · {{ profile_obj.get_role_display }}</div></div>
+    </div>
+    <form method="post">{% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label">First name</label><input name="first_name" class="form-control" value="{{ user.first_name }}" required></div>
+        <div class="col-md-6"><label class="form-label">Last name</label><input name="last_name" class="form-control" value="{{ user.last_name }}"></div>
+        <div class="col-md-6"><label class="form-label">Username</label><input class="form-control" value="{{ user.username }}" disabled><div class="form-text">Managed by an administrator so attendance links stay intact.</div></div>
+        <div class="col-md-6"><label class="form-label">Role</label><input class="form-control" value="{{ profile_obj.get_role_display }}" disabled></div>
+        <div class="col-md-6"><label class="form-label">Title</label><input name="title" class="form-control" value="{{ profile_obj.title }}" placeholder="Assistant Professor"></div>
+        <div class="col-md-6"><label class="form-label">Department</label><input name="department" class="form-control" value="{{ profile_obj.department }}" placeholder="Computer Science"></div>
+        <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="{{ user.email }}"></div>
+        <div class="col-md-6"><label class="form-label">Phone</label><input name="phone" class="form-control" value="{{ profile_obj.phone }}"></div>
+        <div class="col-12"><label class="form-label">Short bio</label><textarea name="bio" class="form-control" rows="3">{{ profile_obj.bio }}</textarea></div>
+        <div class="col-12"><label class="form-label">New password <span class="text-muted fw-normal">(leave blank to keep current)</span></label>
+          <input type="password" name="password" class="form-control" minlength="8" autocomplete="new-password"></div>
+      </div>
+      <button class="btn btn-primary mt-4 px-4"><i class="bi bi-save me-1"></i> Save profile</button>
+    </form>
+  </div>
+</div></div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Class schedule{% endblock %}
+{% block crumb %}Class schedule{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow">Teaching timetable</div><h1 class="page-title">Class schedule</h1>
+    <p class="page-sub">Each slot links a subject to a section, day and room. Choose a slot when marking attendance.</p></div>
+  <a href="{% url 'add_schedule' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i> Add class slot</a>
+</div>
+<div class="card-soft">
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Subject</th><th>Section</th><th>Day</th><th>Time</th><th>Room</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>
+      {% for item in assignments %}
+        <tr>
+          <td><strong>{{ item.subject.code }}</strong><br><small class="text-muted">{{ item.subject.name }}</small></td>
+          <td>Section {{ item.section }}<br><small class="text-muted">Sem {{ item.semester }}{% if item.department %} · {{ item.department }}{% endif %}</small></td>
+          <td>{{ item.get_weekday_display }}</td>
+          <td>{{ item.start_time|time:'H:i' }} – {{ item.end_time|time:'H:i' }}</td>
+          <td>{{ item.room|default:'—' }}</td>
+          <td class="text-end"><form method="post" action="{% url 'delete_schedule' item.id %}" class="m-0" onsubmit="return confirm('Remove this class slot?')">{% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i> Remove</button></form></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6"><div class="empty-state"><i class="bi bi-calendar-plus"></i>No class schedule yet. <a href="{% url 'add_schedule' %}">Add your first class slot</a>.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

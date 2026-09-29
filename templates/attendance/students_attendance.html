@@ -1,0 +1,75 @@
+{% extends 'attendance/base.html' %}
+{% block title %}{{ student.name }}{% endblock %}
+{% block crumb %}{{ student.name }}{% endblock %}
+
+{% block content %}
+{% if is_teacher %}<a href="{% url 'students' %}" class="small fw-semibold"><i class="bi bi-arrow-left"></i> Back to students</a>{% endif %}
+
+<div class="card-soft p-4 my-3">
+  <div class="d-flex flex-wrap align-items-center gap-4">
+    <div class="ring {% if low %}low{% endif %}" style="--p:{{ percentage }}"><span>{{ percentage }}%</span></div>
+    <div class="flex-grow-1">
+      <div class="eyebrow">Student profile</div>
+      <h1 class="page-title mb-1">{{ student.name }}</h1>
+      <div class="text-muted">{{ student.roll_number }} · {{ student.department }} · Semester {{ student.semester }} · Section {{ student.section }}</div>
+      <div class="text-muted small mt-1"><i class="bi bi-envelope"></i> {{ student.email }}</div>
+      <div class="mt-2">
+        {% if total_days == 0 %}<span class="badge text-bg-secondary">No data</span>
+        {% elif low %}<span class="badge text-bg-danger"><i class="bi bi-exclamation-triangle"></i> Below {{ limit }}% requirement</span>
+        {% else %}<span class="badge text-bg-success"><i class="bi bi-check-circle"></i> Good standing</span>{% endif %}
+        {% if student.face_enrolled %}<span class="badge text-bg-info ms-1"><i class="bi bi-person-bounding-box"></i> Face enrolled</span>{% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-3 text-center">
+      <div><div class="fs-3 fw-bold">{{ total_days }}</div><div class="text-muted small">Classes</div></div>
+      <div><div class="fs-3 fw-bold text-success">{{ present_days }}</div><div class="text-muted small">Present</div></div>
+      <div><div class="fs-3 fw-bold text-danger">{{ absent_days }}</div><div class="text-muted small">Absent</div></div>
+    </div>
+  </div>
+</div>
+
+{% if subject_stats %}
+<div class="card-soft p-4 mb-3">
+  <h2 class="section-title mb-3"><i class="bi bi-book"></i> Subject-wise attendance</h2>
+  <div class="row g-4">
+    {% for s in subject_stats %}
+    <div class="col-md-6"><div class="subject-row">
+      <div class="d-flex justify-content-between mb-1"><strong>{{ s.code }} <span class="text-muted fw-normal">· {{ s.name }}</span></strong>
+        <span class="fw-semibold {% if s.low %}text-danger{% else %}text-success{% endif %}">{{ s.percent }}%</span></div>
+      <div class="progress"><div class="progress-bar {% if s.low %}bg-danger{% else %}bg-success{% endif %}" style="width:{{ s.percent }}%"></div></div>
+      <small class="text-muted">{{ s.present }} of {{ s.total }} classes attended</small>
+    </div></div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<form method="get" class="card-soft p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label">Date</label><input type="date" name="date" value="{{ selected_date }}" class="form-control"></div>
+    <div class="col-md-5"><label class="form-label">Subject</label>
+      <select name="subject" class="form-select"><option value="">All subjects</option>
+        {% for subject in subjects %}<option value="{{ subject.id }}" {% if selected_subject == subject.id|stringformat:'s' %}selected{% endif %}>{{ subject.code }} · {{ subject.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3 d-flex gap-2"><button class="btn btn-primary"><i class="bi bi-funnel me-1"></i> Filter</button>
+      <a href="{% url 'student_attendance' student.id %}" class="btn btn-outline-secondary">Reset</a></div>
+  </div>
+</form>
+
+<div class="card-soft">
+  <div class="p-3 pb-2"><h2 class="section-title"><i class="bi bi-clock-history"></i> Attendance history</h2></div>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Date</th><th>Day</th><th>Subject</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for r in records %}
+        <tr><td>{{ r.date|date:"d M Y" }}</td><td>{{ r.date|date:"l" }}</td>
+          <td>{% if r.session.subject %}{{ r.session.subject.code }} · {{ r.session.subject.name }}{% else %}General class{% endif %}</td>
+          <td>{% if r.status %}<span class="badge text-bg-success">Present</span>{% else %}<span class="badge text-bg-danger">Absent</span>{% endif %}</td></tr>
+      {% empty %}
+        <tr><td colspan="4"><div class="empty-state"><i class="bi bi-inbox"></i>No records match these filters.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends 'attendance/base.html' %}
+{% block title %}{{ heading }}{% endblock %}
+{% block crumb %}{{ heading }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center"><div class="col-xl-7">
+  <a href="{% url 'subjects' %}" class="small fw-semibold"><i class="bi bi-arrow-left"></i> Back to subjects</a>
+  <div class="mt-2 mb-4"><div class="eyebrow">Class configuration</div><h1 class="page-title">{{ heading }}</h1></div>
+  <div class="card-soft p-4">
+    <form method="post">{% csrf_token %}
+      <div class="mb-3"><label class="form-label">Subject code</label><input name="code" class="form-control" value="{{ form.code }}" placeholder="e.g. DL-301" required></div>
+      <div class="mb-3"><label class="form-label">Subject name</label><input name="name" class="form-control" value="{{ form.name }}" placeholder="e.g. Deep Learning Foundations" required></div>
+      {% if subject %}<div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" name="is_active" id="active" {% if form.is_active %}checked{% endif %}><label class="form-check-label" for="active">Active subject</label></div>{% endif %}
+      <div class="p-3 rounded-3 mb-4 small" style="background:var(--primary-50);color:var(--text-2)"><i class="bi bi-lightbulb text-primary me-1"></i> Examples: Deep Learning Foundations, Operating Systems, Computer Networks, Database Management Systems, Software Engineering.</div>
+      <button class="btn btn-primary px-4"><i class="bi bi-save me-1"></i> Save subject</button>
+      <a href="{% url 'subjects' %}" class="btn btn-outline-secondary ms-1">Cancel</a>
+    </form>
+  </div>
+</div></div>
+{% endblock %}

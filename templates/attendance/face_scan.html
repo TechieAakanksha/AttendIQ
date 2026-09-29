@@ -1,0 +1,156 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Live face scan{% endblock %}
+{% block crumb %}Live face scan{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow">{{ active_session.course_code }} · Room {{ active_session.room }}</div>
+    <h1 class="page-title">Live face scan</h1>
+    <p class="page-sub">Local OpenCV recognition. Each student is marked present once per session.</p></div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <select id="subjectPicker" class="form-select" style="min-width:230px" aria-label="Subject">
+      {% for subject in subjects %}<option value="{{ subject.id }}" {% if selected_subject == subject.id|stringformat:'s' %}selected{% endif %}>{{ subject.code }} · {{ subject.name }}</option>
+      {% empty %}<option value="">No subjects yet</option>{% endfor %}
+    </select>
+    <a href="{% url 'students' %}" class="btn btn-outline-primary"><i class="bi bi-person-plus me-1"></i> Enroll faces</a>
+  </div>
+</div>
+
+{% if not subjects %}
+<div class="alert alert-warning app-alert"><i class="bi bi-info-circle me-2"></i>Add a subject first so scanned attendance is linked to a class. <a href="{% url 'add_subject' %}" class="fw-semibold">Add subject</a></div>
+{% endif %}
+{% if enrolled_count == 0 %}
+<div class="alert alert-warning app-alert"><i class="bi bi-info-circle me-2"></i>No student has an enrolled face yet. <a href="{% url 'students' %}" class="fw-semibold">Enroll faces</a> to begin recognising students.</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-4"><div class="stat-card stat-blue"><div class="stat-label">Students</div><div class="stat-value">{{ total_students }}</div><span class="stat-icon"><i class="bi bi-people-fill"></i></span></div></div>
+  <div class="col-4"><div class="stat-card stat-teal"><div class="stat-label">Face-enrolled</div><div class="stat-value">{{ enrolled_count }}</div><span class="stat-icon"><i class="bi bi-person-bounding-box"></i></span></div></div>
+  <div class="col-4"><div class="stat-card stat-green"><div class="stat-label">Present now</div><div class="stat-value" id="presentNow">{{ present_now }}</div><span class="stat-icon"><i class="bi bi-check-circle-fill"></i></span></div></div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card-soft p-3">
+      <div class="d-flex justify-content-between align-items-center px-2 pb-3">
+        <div><h2 class="section-title">Camera 01 · Classroom</h2><span class="text-muted small">LBPH recognizer · runs locally</span></div>
+        <span id="state" class="badge rounded-pill text-bg-secondary">READY</span>
+      </div>
+      <div class="cam-box ratio ratio-16x9">
+        <video id="video" autoplay muted playsinline></video>
+        <div id="placeholder" class="cam-placeholder"><div><i class="bi bi-camera-video"></i>Connect a camera to begin</div></div>
+        <div class="scan-frame" id="frame"></div>
+        <div class="cam-tag"><i class="bi bi-circle-fill"></i> CAM_01 · LOCAL</div>
+        <canvas id="overlay" class="d-none"></canvas>
+      </div>
+      <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
+        <button id="connect" class="btn btn-primary"><i class="bi bi-camera-video me-1"></i> Connect camera</button>
+        <button id="scan" class="btn btn-outline-primary" disabled><i class="bi bi-play-circle me-1"></i> Start auto-scan</button>
+        <span id="status" class="text-muted small">Waiting for camera permission</span>
+      </div>
+      <div id="result" class="result-banner mt-3 d-none" role="status"></div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card-soft p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div><h2 class="section-title">Recognition stream</h2><span class="text-muted small">{{ active_session.course_code }} · {{ active_session.course_name }}</span></div>
+        <span class="badge rounded-pill text-bg-success">Audit on</span>
+      </div>
+      <div id="events">
+        {% for event in events %}
+          <div class="feed-item d-flex justify-content-between">
+            <div><span class="dot dot-{{ event.result }}"></span><strong class="small">{% if event.student %}{{ event.student.name }}{% else %}Unknown face{% endif %}</strong>
+              <div class="text-muted small ms-3">{{ event.get_result_display }}{% if event.confidence %} · {{ event.confidence }}% confidence{% endif %}</div></div>
+            <span class="text-muted small">{{ event.captured_at|date:'H:i:s' }}</span>
+          </div>
+        {% empty %}
+          <div id="empty" class="empty-state"><i class="bi bi-radar"></i>No scan events yet</div>
+        {% endfor %}
+      </div>
+      <hr>
+      <form method="post" action="{% url 'end_session' active_session.id %}" class="d-flex flex-wrap gap-2 m-0">{% csrf_token %}
+        <button class="btn btn-sm btn-primary" name="mark_absent" value="1" onclick="return confirm('End this session and mark every student who was not scanned as absent?')"><i class="bi bi-flag me-1"></i> End &amp; mark absentees</button>
+        <button class="btn btn-sm btn-outline-secondary" name="mark_absent" value="0" onclick="return confirm('End this session without marking absentees?')">End only</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const $ = id => document.getElementById(id);
+  const video = $('video'), canvas = $('overlay'), connect = $('connect'), scan = $('scan'), state = $('state'), statusText = $('status'),
+        placeholder = $('placeholder'), result = $('result'), events = $('events'), subjectPicker = $('subjectPicker'), frame = $('frame');
+  let stream = null, timer = null, busy = false;
+  const csrf = '{{ csrf_token }}';
+  const SCAN_URL = '{% url "face_scan_api" %}';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function setState(cls, text) { state.className = 'badge rounded-pill ' + cls; state.textContent = text; }
+  function stopScan() { if (timer) { clearInterval(timer); timer = null; } frame.classList.remove('active'); }
+
+  subjectPicker.addEventListener('change', () => { stopScan(); window.location.href = '?subject=' + encodeURIComponent(subjectPicker.value); });
+
+  connect.onclick = async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      video.srcObject = stream; await video.play();
+      scan.disabled = false; placeholder.classList.add('d-none'); connect.disabled = true;
+      connect.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Camera connected';
+      setState('text-bg-success', 'CONNECTED'); statusText.textContent = 'Camera ready · start auto-scan';
+    } catch (e) {
+      setState('text-bg-danger', 'OFFLINE'); statusText.textContent = 'Camera unavailable — allow permission (localhost/HTTPS required)';
+    }
+  };
+
+  scan.onclick = () => {
+    if (timer) {
+      stopScan(); scan.innerHTML = '<i class="bi bi-play-circle me-1"></i> Resume auto-scan';
+      setState('text-bg-warning', 'PAUSED'); statusText.textContent = 'Scan paused'; return;
+    }
+    timer = setInterval(sendFrame, 2500); frame.classList.add('active');
+    scan.innerHTML = '<i class="bi bi-pause-circle me-1"></i> Pause auto-scan';
+    setState('text-bg-primary', 'SCANNING'); statusText.textContent = 'Analysing frames every few seconds…'; sendFrame();
+  };
+
+  async function sendFrame() {
+    if (!video.videoWidth || busy) return;
+    busy = true;
+    const scale = Math.min(1, 640 / video.videoWidth);      // smaller frames = faster uploads and detection
+    canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    const image = canvas.toDataURL('image/jpeg', 0.85);
+    try {
+      const response = await fetch(SCAN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({ image, subject: subjectPicker.value }) });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.message || 'Scan failed');
+      showResult(data);
+    } catch (e) {
+      showResult({ result: 'error', message: e.message || 'Server could not process this frame.' });
+    } finally { busy = false; }
+  }
+
+  function showResult(data) {
+    const kind = data.result || 'review';
+    result.className = 'result-banner mt-3 result-' + kind;
+    const title = data.student ? data.student + (data.roll_number ? ' · ' + data.roll_number : '') : 'No enrolled match';
+    result.innerHTML = '<strong>' + esc(title) + '</strong> · ' + esc(kind.replace('_', ' ').toUpperCase()) +
+      '<div class="small mt-1">' + esc(data.message || '') + (data.confidence ? ' · ' + esc(data.confidence) + '% confidence' : '') + '</div>';
+    if (typeof data.present_now === 'number') $('presentNow').textContent = data.present_now;
+    if (kind === 'error' || kind === 'no_face') return;
+    const empty = $('empty'); if (empty) empty.remove();
+    const row = document.createElement('div'); row.className = 'feed-item d-flex justify-content-between';
+    const name = data.student ? data.student : 'Unknown face';
+    const note = kind === 'matched' ? (data.already_marked ? 'Already marked present' : 'Matched · attendance logged') : kind.toUpperCase();
+    row.innerHTML = '<div><span class="dot dot-' + esc(kind) + '"></span><strong class="small">' + esc(name) + '</strong><div class="text-muted small ms-3">' + esc(note) +
+      (data.confidence ? ' · ' + esc(data.confidence) + '%' : '') + '</div></div><span class="text-muted small">now</span>';
+    events.prepend(row);
+  }
+
+  window.addEventListener('beforeunload', () => { stopScan(); if (stream) stream.getTracks().forEach(t => t.stop()); });
+</script>
+{% endblock %}

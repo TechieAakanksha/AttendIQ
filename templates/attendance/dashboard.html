@@ -1,0 +1,161 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block crumb %}Overview{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow">{% now "l, d F Y" %}</div>
+    <h1 class="page-title">Hello, {{ user.first_name|default:user.username }} 👋</h1>
+    <p class="page-sub">Here is how attendance looks across your classes today.</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'face_scan' %}" class="btn btn-primary"><i class="bi bi-camera-video me-1"></i> Start face scan</a>
+    <a href="{% url 'attendance' %}" class="btn btn-outline-primary"><i class="bi bi-check2-square me-1"></i> Mark manually</a>
+    <a href="{% url 'attendance_report' %}" class="btn btn-outline-primary"><i class="bi bi-bar-chart-line me-1"></i> Analytics</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl"><div class="stat-card stat-blue lift">
+    <div class="stat-label">Total students</div><div class="stat-value">{{ total_students }}</div>
+    <div class="stat-sub">{{ enrolled_count }} face-enrolled</div><span class="stat-icon"><i class="bi bi-people-fill"></i></span></div></div>
+  <div class="col-6 col-xl"><div class="stat-card stat-green lift">
+    <div class="stat-label">Present records</div><div class="stat-value">{{ total_present }}</div>
+    <div class="stat-sub">All time</div><span class="stat-icon"><i class="bi bi-check-circle-fill"></i></span></div></div>
+  <div class="col-6 col-xl"><div class="stat-card stat-red lift">
+    <div class="stat-label">Absent records</div><div class="stat-value">{{ total_absent }}</div>
+    <div class="stat-sub">All time</div><span class="stat-icon"><i class="bi bi-x-circle-fill"></i></span></div></div>
+  <div class="col-6 col-xl"><div class="stat-card stat-amber lift">
+    <div class="stat-label">Overall attendance</div><div class="stat-value">{{ attendance_percentage }}%</div>
+    <div class="stat-sub">Required: {{ limit }}%</div><span class="stat-icon"><i class="bi bi-pie-chart-fill"></i></span></div></div>
+  <div class="col-12 col-xl"><div class="stat-card stat-teal lift">
+    <div class="stat-label">Today</div><div class="stat-value">{% if today_total %}{{ today_percentage }}%{% else %}—{% endif %}</div>
+    <div class="stat-sub">{{ today_total }} record{{ today_total|pluralize }} today</div><span class="stat-icon"><i class="bi bi-calendar-check-fill"></i></span></div></div>
+</div>
+
+{% if active_session %}
+<div class="card-soft p-3 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+  <div class="d-flex align-items-center gap-3">
+    <span class="badge rounded-pill text-bg-success px-3 py-2"><i class="bi bi-broadcast me-1"></i> LIVE SESSION</span>
+    <div><strong>{{ active_session.course_code }} · {{ active_session.course_name }}</strong>
+      <div class="text-muted small">Room {{ active_session.room }} · started {{ active_session.starts_at|date:"H:i" }}</div></div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'face_scan' %}" class="btn btn-sm btn-primary">Open scan console</a>
+    <form method="post" action="{% url 'end_session' active_session.id %}" class="m-0">{% csrf_token %}
+      <button class="btn btn-sm btn-outline-secondary">End session</button></form>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-7"><div class="card-soft p-3 h-100">
+    <h2 class="section-title mb-3"><i class="bi bi-graph-up"></i> Attendance — last 7 days</h2>
+    <div style="height:260px"><canvas id="dashTrend"></canvas></div>
+  </div></div>
+  <div class="col-lg-5"><div class="card-soft p-3 h-100">
+    <h2 class="section-title mb-3"><i class="bi bi-diagram-3"></i> By department</h2>
+    {% if dept_labels %}<div style="height:260px"><canvas id="dashDept"></canvas></div>
+    {% else %}<div class="empty-state"><i class="bi bi-bar-chart"></i>No attendance data yet.</div>{% endif %}
+  </div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card-soft p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="section-title"><i class="bi bi-exclamation-triangle-fill text-danger"></i> Needs attention (&lt; {{ limit }}%)</h2>
+        {% if low_students %}
+        <form method="post" action="{% url 'send_warnings' %}" class="m-0" onsubmit="return confirm('Send warning emails to all low-attendance students?')">
+          {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-envelope-exclamation"></i> Email</button>
+        </form>{% endif %}
+      </div>
+      {% for item in low_students %}
+        <div class="d-flex justify-content-between align-items-center py-2 {% if not forloop.last %}border-bottom{% endif %}">
+          <div class="d-flex align-items-center gap-2">
+            <span class="avatar">{{ item.student.name|slice:":1"|upper }}</span>
+            <div><strong>{{ item.student.name }}</strong><small class="text-muted d-block">{{ item.student.roll_number }} · {{ item.student.department }}</small></div>
+          </div>
+          <div class="text-end"><span class="badge text-bg-danger">{{ item.percent }}%</span>
+            <a href="{% url 'student_attendance' item.student.id %}" class="btn btn-sm btn-outline-primary ms-1">View</a></div>
+        </div>
+      {% empty %}
+        <div class="empty-state"><i class="bi bi-emoji-smile text-success"></i>Everyone is above the {{ limit }}% limit.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card-soft h-100">
+      <div class="p-3 pb-2 d-flex justify-content-between align-items-center">
+        <h2 class="section-title"><i class="bi bi-clock-history"></i> Recent attendance</h2>
+        <a href="{% url 'attendance_records' %}" class="small fw-semibold">View all</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead><tr><th>Student</th><th>Subject</th><th>Date</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for r in recent_attendance %}
+            <tr>
+              <td><span class="avatar me-2">{{ r.student.name|slice:":1"|upper }}</span>{{ r.student.name }}</td>
+              <td class="text-muted small">{% if r.session.subject %}{{ r.session.subject.code }}{% else %}—{% endif %}</td>
+              <td>{{ r.date|date:"d M Y" }}</td>
+              <td>{% if r.status %}<span class="badge text-bg-success">Present</span>{% else %}<span class="badge text-bg-danger">Absent</span>{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4"><div class="empty-state"><i class="bi bi-inbox"></i>No attendance marked yet.</div></td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if recent_scans %}
+<div class="card-soft p-3 mt-3">
+  <h2 class="section-title mb-2"><i class="bi bi-broadcast"></i> Latest face-scan activity</h2>
+  <div class="row">
+    {% for event in recent_scans %}
+    <div class="col-md-6 col-xl-4"><div class="feed-item d-flex justify-content-between">
+      <div><span class="dot dot-{{ event.result }}"></span><strong class="small">{% if event.student %}{{ event.student.name }}{% else %}Unknown face{% endif %}</strong>
+        <div class="text-muted small ms-3">{{ event.get_result_display }}{% if event.confidence %} · {{ event.confidence }}%{% endif %}</div></div>
+      <span class="text-muted small">{{ event.captured_at|date:"d M, H:i" }}</span>
+    </div></div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{{ trend_labels|json_script:"d-trend-labels" }}
+{{ trend_values|json_script:"d-trend-values" }}
+{{ dept_labels|json_script:"d-dept-labels" }}
+{{ dept_values|json_script:"d-dept-values" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const read = id => JSON.parse(document.getElementById(id).textContent);
+  Chart.defaults.font.family = "'Inter', sans-serif";
+  Chart.defaults.color = '#64748b';
+  const grid = { color: '#eef2f7' };
+
+  new Chart(document.getElementById('dashTrend'), {
+    type: 'line',
+    data: { labels: read('d-trend-labels'), datasets: [{
+      label: 'Attendance %', data: read('d-trend-values'), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.10)',
+      fill: true, tension: .4, pointRadius: 4, pointBackgroundColor: '#fff', pointBorderColor: '#2563eb', pointBorderWidth: 2, spanGaps: true }]},
+    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, grid }, x: { grid: { display: false } } }, plugins: { legend: { display: false } } }
+  });
+
+  const deptCanvas = document.getElementById('dashDept');
+  if (deptCanvas) new Chart(deptCanvas, {
+    type: 'bar',
+    data: { labels: read('d-dept-labels'), datasets: [{ label: 'Attendance %', data: read('d-dept-values'),
+      backgroundColor: ['#2563eb', '#0d9488', '#7c3aed', '#d97706', '#0ea5e9', '#db2777'], borderRadius: 8, maxBarThickness: 48 }]},
+    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, grid }, x: { grid: { display: false } } }, plugins: { legend: { display: false } } }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Enroll face{% endblock %}
+{% block crumb %}Face enrollment{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow">Student identity · {{ student.roll_number }}</div>
+    <h1 class="page-title">Enroll {{ student.name }}</h1>
+    <p class="page-sub">Capture several angles so OpenCV can recognise this student reliably.</p></div>
+  <a href="{% url 'students' %}" class="btn btn-outline-primary"><i class="bi bi-arrow-left me-1"></i> Back to students</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card-soft p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="section-title"><i class="bi bi-camera-video"></i> Capture samples</h2>
+        <span class="badge rounded-pill text-bg-dark">{{ sample_count }} stored sample{{ sample_count|pluralize }}</span>
+      </div>
+      <div class="cam-box ratio ratio-16x9 mb-3">
+        <video id="video" autoplay muted playsinline></video>
+        <div id="placeholder" class="cam-placeholder"><div><i class="bi bi-camera-video"></i>Camera preview will appear here</div></div>
+        <div class="scan-frame" id="frame"></div>
+        <canvas id="canvas" class="d-none"></canvas>
+      </div>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <button id="connect" type="button" class="btn btn-primary"><i class="bi bi-camera-video me-1"></i> Connect webcam</button>
+        <button id="capture" type="button" class="btn btn-outline-primary" disabled><i class="bi bi-camera me-1"></i> Capture sample</button>
+        <button id="clear" type="button" class="btn btn-outline-secondary d-none"><i class="bi bi-arrow-counterclockwise me-1"></i> Clear</button>
+        <span id="count" class="text-muted small ms-1">0 new samples</span>
+      </div>
+      <div id="previews" class="d-flex flex-wrap gap-2 mt-3"></div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card-soft p-4 h-100">
+      <span class="badge rounded-pill text-bg-success mb-3"><i class="bi bi-shield-lock"></i> Privacy first</span>
+      <h2 class="section-title mb-2">How enrollment works</h2>
+      <p class="text-muted small">Face samples are stored in your own server's media folder and used to train a local OpenCV recognizer. Nothing is sent to a third-party service.</p>
+      <ol class="text-muted small ps-3 tip-list">
+        <li>Capture <strong>{{ min_samples }}–{{ max_samples }}</strong> clear frames (5–8 is ideal).</li>
+        <li>Face the camera in good, even lighting; remove sunglasses or masks.</li>
+        <li>Vary the angle slightly: straight, a little left, a little right.</li>
+        <li>Frames without a detectable face are skipped automatically.</li>
+      </ol>
+      <div class="p-3 rounded-3 small" style="background:#fffbeb;border:1px solid #f5d68a;color:#78350f"><i class="bi bi-shield-exclamation me-1"></i> Only enroll students who have given informed consent.</div>
+    </div>
+  </div>
+</div>
+
+<form id="enroll-form" method="post" enctype="multipart/form-data" class="card-soft p-3 mt-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+  {% csrf_token %}
+  <div id="files"></div>
+  {% if sample_count %}
+  <div class="form-check"><input class="form-check-input" type="checkbox" name="replace" value="1" id="replace" checked>
+    <label class="form-check-label" for="replace">Replace the {{ sample_count }} existing sample{{ sample_count|pluralize }} with these new ones</label></div>
+  {% else %}<span class="text-muted small">Capture at least {{ min_samples }} samples to enable saving.</span>{% endif %}
+  <button class="btn btn-primary px-4" type="submit" id="submit" disabled><i class="bi bi-person-check me-1"></i> Save face enrollment</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const MIN = {{ min_samples }}, MAX = {{ max_samples }}, existing = {{ sample_count }};
+  const $ = id => document.getElementById(id);
+  const video = $('video'), canvas = $('canvas'), connect = $('connect'), capture = $('capture'), clearBtn = $('clear'),
+        files = $('files'), previews = $('previews'), count = $('count'), submit = $('submit'), placeholder = $('placeholder'), frame = $('frame');
+  let stream = null, shots = [];
+
+  function refresh() {
+    count.textContent = shots.length + ' new sample' + (shots.length === 1 ? '' : 's');
+    submit.disabled = shots.length < 1 || (shots.length < MIN && existing === 0);
+    clearBtn.classList.toggle('d-none', shots.length === 0);
+    capture.disabled = !stream || shots.length >= MAX;
+    const dt = new DataTransfer();
+    shots.forEach(s => dt.items.add(s.file));
+    let input = document.querySelector('input[name=samples]');
+    if (!input) { input = document.createElement('input'); input.type = 'file'; input.name = 'samples'; input.multiple = true; input.className = 'd-none'; files.appendChild(input); }
+    input.files = dt.files;
+  }
+
+  connect.onclick = async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      video.srcObject = stream; await video.play();
+      placeholder.classList.add('d-none'); frame.classList.add('active');
+      connect.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Camera connected'; connect.disabled = true;
+      refresh();
+    } catch (e) {
+      alert('Camera access was blocked or is unavailable. Allow camera permission (use localhost or HTTPS) and try again.');
+    }
+  };
+
+  capture.onclick = () => {
+    if (!stream || !video.videoWidth) return;
+    const scale = Math.min(1, 960 / video.videoWidth);       // keep stored frames reasonably small
+    canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(blob => {
+      const file = new File([blob], 'face-' + (shots.length + 1) + '.jpg', { type: 'image/jpeg' });
+      const img = document.createElement('img'); img.src = URL.createObjectURL(blob); img.className = 'preview-thumb'; img.alt = 'Captured sample';
+      previews.appendChild(img); shots.push({ file, img }); refresh();
+    }, 'image/jpeg', 0.9);
+  };
+
+  clearBtn.onclick = () => { shots.forEach(s => URL.revokeObjectURL(s.img.src)); shots = []; previews.innerHTML = ''; refresh(); };
+  window.addEventListener('beforeunload', () => stream && stream.getTracks().forEach(t => t.stop()));
+</script>
+{% endblock %}

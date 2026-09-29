@@ -1,0 +1,49 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Attendance records{% endblock %}
+{% block crumb %}Records{% endblock %}
+
+{% block content %}
+<div class="page-head"><div><div class="eyebrow">Audit trail</div><h1 class="page-title">Attendance records</h1>
+  <p class="page-sub">Search every attendance entry with its date, subject and how it was captured.</p></div></div>
+
+<form method="get" class="card-soft p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label">Search student</label><input type="text" name="q" value="{{ f.q }}" class="form-control" placeholder="Name or roll number"></div>
+    <div class="col-md-3"><label class="form-label">Date</label><input type="date" name="date" value="{{ f.date }}" class="form-control"></div>
+    <div class="col-md-2"><label class="form-label">Status</label>
+      <select name="status" class="form-select"><option value="">All</option>
+        <option value="present" {% if f.status == 'present' %}selected{% endif %}>Present</option>
+        <option value="absent" {% if f.status == 'absent' %}selected{% endif %}>Absent</option></select></div>
+    <div class="col-md-3 d-flex gap-2"><button class="btn btn-primary"><i class="bi bi-funnel me-1"></i> Filter</button>
+      <a href="{% url 'attendance_records' %}" class="btn btn-outline-secondary">Reset</a></div>
+  </div>
+</form>
+
+<div class="card-soft">
+  <div class="table-responsive">
+    <table class="table align-middle table-hover">
+      <thead><tr><th>Student</th><th>Subject</th><th>Date</th><th>Source</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for r in records %}
+        <tr>
+          <td><span class="avatar me-2">{{ r.student.name|slice:":1"|upper }}</span>{{ r.student.name }} <small class="text-muted ms-1">{{ r.student.roll_number }}</small></td>
+          <td>{% if r.session.subject %}{{ r.session.subject.code }} <small class="text-muted">{{ r.session.subject.name }}</small>{% else %}—{% endif %}</td>
+          <td>{{ r.date|date:"d M Y" }}</td>
+          <td><span class="badge text-bg-secondary">{% if r.source == 'opencv' %}Face scan{% elif r.source == 'manual' %}Manual{% elif r.source == 'auto_absent' %}Auto-absent{% else %}{{ r.source|title }}{% endif %}</span>{% if r.confidence %} <small class="text-muted">{{ r.confidence }}%</small>{% endif %}</td>
+          <td>{% if r.status %}<span class="badge text-bg-success">Present</span>{% else %}<span class="badge text-bg-danger">Absent</span>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5"><div class="empty-state"><i class="bi bi-inbox"></i>No records found.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if records.has_other_pages %}
+  <nav class="p-3"><ul class="pagination justify-content-center mb-0">
+    {% if records.has_previous %}<li class="page-item"><a class="page-link" href="?{{ query }}{% if query %}&{% endif %}page={{ records.previous_page_number }}">&laquo; Prev</a></li>{% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ records.number }} of {{ records.paginator.num_pages }}</span></li>
+    {% if records.has_next %}<li class="page-item"><a class="page-link" href="?{{ query }}{% if query %}&{% endif %}page={{ records.next_page_number }}">Next &raquo;</a></li>{% endif %}
+  </ul></nav>
+  {% endif %}
+</div>
+{% endblock %}

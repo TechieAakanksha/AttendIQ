@@ -1,0 +1,71 @@
+{% extends 'attendance/base.html' %}
+{% block title %}My attendance{% endblock %}
+{% block crumb %}My attendance{% endblock %}
+
+{% block content %}
+{% if not student %}
+  <div class="card-soft p-5"><div class="empty-state"><i class="bi bi-person-exclamation"></i>
+    <h5>Your account isn't linked to a student record yet</h5>
+    Please ask your teacher to add you from <strong>Students → Add student</strong>.</div></div>
+{% else %}
+<div class="page-head">
+  <div><div class="eyebrow">Student workspace · {{ student.roll_number }}</div>
+    <h1 class="page-title">Hello, {{ student.name }} 👋</h1>
+    <p class="page-sub">{{ student.department }} · Semester {{ student.semester }} · Section {{ student.section }}</p></div>
+  <a href="{% url 'student_attendance' student.id %}" class="btn btn-primary"><i class="bi bi-funnel me-1"></i> View by date &amp; subject</a>
+</div>
+
+{% if is_low %}
+<div class="alert alert-danger app-alert"><i class="bi bi-exclamation-triangle-fill me-2"></i>
+  Your overall attendance is <strong>{{ attendance_percentage }}%</strong>, below the required {{ limit }}%. Please attend upcoming classes regularly.</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4"><div class="card-soft p-4 h-100 d-flex align-items-center gap-4">
+    <div class="ring {% if is_low %}low{% endif %}" style="--p:{{ attendance_percentage }}"><span>{{ attendance_percentage }}%</span></div>
+    <div><div class="stat-label text-muted small fw-semibold text-uppercase">Attendance rate</div>
+      <div class="text-muted small mt-1">Minimum required: {{ limit }}%</div></div>
+  </div></div>
+  <div class="col-lg-8"><div class="row g-3 h-100">
+    <div class="col-4"><div class="stat-card stat-green"><div class="stat-label">Present</div><div class="stat-value text-success">{{ total_present }}</div><span class="stat-icon"><i class="bi bi-check-circle-fill"></i></span></div></div>
+    <div class="col-4"><div class="stat-card stat-red"><div class="stat-label">Absent</div><div class="stat-value text-danger">{{ total_absent }}</div><span class="stat-icon"><i class="bi bi-x-circle-fill"></i></span></div></div>
+    <div class="col-4"><div class="stat-card stat-blue"><div class="stat-label">Total classes</div><div class="stat-value">{{ total_attendance }}</div><span class="stat-icon"><i class="bi bi-journal-check"></i></span></div></div>
+  </div></div>
+</div>
+
+{% if subject_stats %}
+<div class="card-soft p-4 mb-4">
+  <h2 class="section-title mb-3"><i class="bi bi-book"></i> Subject-wise attendance</h2>
+  <div class="row g-4">
+    {% for s in subject_stats %}
+    <div class="col-md-6"><div class="subject-row">
+      <div class="d-flex justify-content-between mb-1"><strong>{{ s.code }} <span class="text-muted fw-normal">· {{ s.name }}</span></strong>
+        <span class="fw-semibold {% if s.low %}text-danger{% else %}text-success{% endif %}">{{ s.percent }}%</span></div>
+      <div class="progress"><div class="progress-bar {% if s.low %}bg-danger{% else %}bg-success{% endif %}" style="width:{{ s.percent }}%"></div></div>
+      <small class="text-muted">{{ s.present }} of {{ s.total }} classes attended</small>
+    </div></div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card-soft">
+  <div class="p-3 pb-2"><h2 class="section-title"><i class="bi bi-clock-history"></i> Recent attendance</h2></div>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Date</th><th>Subject</th><th>Room</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for r in records %}
+        <tr><td>{{ r.date|date:"d M Y" }}</td>
+          <td>{% if r.session.subject %}{{ r.session.subject.code }} · {{ r.session.subject.name }}{% else %}{{ r.session.course_name|default:"General class" }}{% endif %}</td>
+          <td class="text-muted">{{ r.session.room|default:"—" }}</td>
+          <td>{% if r.status %}<span class="badge text-bg-success">Present</span>{% else %}<span class="badge text-bg-danger">Absent</span>{% endif %}</td></tr>
+      {% empty %}
+        <tr><td colspan="4"><div class="empty-state"><i class="bi bi-inbox"></i>No attendance has been recorded yet.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

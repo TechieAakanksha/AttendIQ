@@ -1,0 +1,110 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Analytics{% endblock %}
+{% block crumb %}Analytics{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow">Reports</div><h1 class="page-title">Attendance analytics</h1>
+    <p class="page-sub">Filter by department, semester and date range. Export the result or print it.</p></div>
+  <div class="d-flex gap-2 no-print">
+    <a href="?{{ query }}{% if query %}&{% endif %}export=csv" class="btn btn-outline-primary"><i class="bi bi-download me-1"></i> Export CSV</a>
+    <button type="button" class="btn btn-outline-primary" onclick="window.print()"><i class="bi bi-printer me-1"></i> Print</button>
+  </div>
+</div>
+
+<form method="get" class="card-soft p-3 mb-4 no-print">
+  <div class="row g-2 align-items-end">
+    <div class="col-6 col-md-3"><label class="form-label">Department</label>
+      <select name="department" class="form-select"><option value="">All</option>
+        {% for dep in departments %}<option value="{{ dep }}" {% if dep == f.department %}selected{% endif %}>{{ dep }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-2"><label class="form-label">Semester</label>
+      <select name="semester" class="form-select"><option value="">All</option>
+        {% for sem in semesters %}<option value="{{ sem }}" {% if sem|stringformat:"s" == f.semester %}selected{% endif %}>{{ sem }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-2"><label class="form-label">From</label><input type="date" name="start" value="{{ f.start }}" class="form-control"></div>
+    <div class="col-6 col-md-2"><label class="form-label">To</label><input type="date" name="end" value="{{ f.end }}" class="form-control"></div>
+    <div class="col-12 col-md-3 d-flex gap-2 align-items-center flex-wrap">
+      <div class="form-check me-1"><input class="form-check-input" type="checkbox" name="low" value="1" id="lowOnly" {% if f.low %}checked{% endif %}>
+        <label class="form-check-label small" for="lowOnly">Low only</label></div>
+      <button class="btn btn-primary"><i class="bi bi-funnel"></i> Apply</button>
+      <a href="{% url 'attendance_report' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </div>
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><div class="stat-card stat-blue"><div class="stat-label">Students shown</div><div class="stat-value">{{ total_students }}</div><span class="stat-icon"><i class="bi bi-people-fill"></i></span></div></div>
+  <div class="col-6 col-lg-3"><div class="stat-card stat-green"><div class="stat-label">Overall attendance</div><div class="stat-value">{{ overall }}%</div><span class="stat-icon"><i class="bi bi-graph-up-arrow"></i></span></div></div>
+  <div class="col-6 col-lg-3"><div class="stat-card stat-red"><div class="stat-label">Below {{ limit }}%</div><div class="stat-value">{{ low_count }}</div><span class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></span></div></div>
+  <div class="col-6 col-lg-3"><div class="stat-card stat-amber"><div class="stat-label">Records counted</div><div class="stat-value">{{ total_records }}</div><span class="stat-icon"><i class="bi bi-journal-check"></i></span></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-8"><div class="card-soft p-3 h-100"><h2 class="section-title mb-3"><i class="bi bi-graph-up"></i> Last 7 days</h2><div style="height:250px"><canvas id="trendChart"></canvas></div></div></div>
+  <div class="col-lg-4"><div class="card-soft p-3 h-100"><h2 class="section-title mb-3"><i class="bi bi-pie-chart"></i> Present vs absent</h2><div style="height:250px"><canvas id="pieChart"></canvas></div></div></div>
+</div>
+{% if subject_labels %}
+<div class="card-soft p-3 mb-4"><h2 class="section-title mb-3"><i class="bi bi-book"></i> Attendance by subject</h2><div style="height:230px"><canvas id="subjectChart"></canvas></div></div>
+{% endif %}
+
+<div class="card-soft">
+  <div class="p-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h2 class="section-title"><i class="bi bi-table"></i> Student-wise attendance <span class="text-muted fw-normal small">(lowest first)</span></h2>
+    <form method="post" action="{% url 'send_warnings' %}" class="m-0 no-print" onsubmit="return confirm('Send warning emails to all low-attendance students?')">{% csrf_token %}
+      <button class="btn btn-sm btn-outline-danger"><i class="bi bi-envelope-exclamation me-1"></i> Email warnings</button></form>
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Student</th><th>Dept</th><th>Sem</th><th>Classes</th><th>Present</th><th>Absent</th><th style="min-width:140px">Attendance</th><th>Status</th><th class="no-print"></th></tr></thead>
+      <tbody>
+      {% for d in data %}
+        <tr>
+          <td><span class="avatar me-2">{{ d.student.name|slice:":1"|upper }}</span>{{ d.student.name }}<br><small class="text-muted ms-5">{{ d.student.roll_number }}</small></td>
+          <td>{{ d.student.department }}</td><td>{{ d.student.semester }}</td><td>{{ d.total }}</td>
+          <td class="text-success fw-semibold">{{ d.present }}</td><td class="text-danger fw-semibold">{{ d.absent }}</td>
+          <td><div class="progress"><div class="progress-bar {% if d.low %}bg-danger{% else %}bg-success{% endif %}" style="width:{{ d.percent }}%"></div></div><small class="text-muted">{{ d.percent }}%</small></td>
+          <td>{% if d.total == 0 %}<span class="badge text-bg-secondary">No data</span>{% elif d.low %}<span class="badge text-bg-danger"><i class="bi bi-exclamation-triangle"></i> Low</span>{% else %}<span class="badge text-bg-success">Good</span>{% endif %}</td>
+          <td class="no-print"><a href="{% url 'student_attendance' d.student.id %}" class="btn btn-sm btn-outline-primary">View</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="9"><div class="empty-state"><i class="bi bi-inbox"></i>No students match these filters.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{{ trend_labels|json_script:"trend-labels" }}
+{{ trend_values|json_script:"trend-values" }}
+{{ subject_labels|json_script:"subject-labels" }}
+{{ subject_values|json_script:"subject-values" }}
+{{ present_records|json_script:"present-records" }}
+{{ absent_records|json_script:"absent-records" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const read = id => JSON.parse(document.getElementById(id).textContent);
+  Chart.defaults.font.family = "'Inter', sans-serif";
+  Chart.defaults.color = '#64748b';
+  const grid = { color: '#eef2f7' };
+
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: { labels: read('trend-labels'), datasets: [{ label: 'Attendance %', data: read('trend-values'), borderColor: '#2563eb',
+      backgroundColor: 'rgba(37,99,235,.10)', fill: true, tension: .4, pointRadius: 4, pointBackgroundColor: '#fff', pointBorderColor: '#2563eb', pointBorderWidth: 2, spanGaps: true }]},
+    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, grid }, x: { grid: { display: false } } }, plugins: { legend: { display: false } } }
+  });
+  new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: { labels: ['Present', 'Absent'], datasets: [{ data: [read('present-records'), read('absent-records')], backgroundColor: ['#16a34a', '#ef4444'], borderWidth: 0 }]},
+    options: { maintainAspectRatio: false, cutout: '68%', plugins: { legend: { position: 'bottom' } } }
+  });
+  const subjectCanvas = document.getElementById('subjectChart');
+  if (subjectCanvas) new Chart(subjectCanvas, {
+    type: 'bar',
+    data: { labels: read('subject-labels'), datasets: [{ label: 'Attendance %', data: read('subject-values'), backgroundColor: '#4f46e5', borderRadius: 8, maxBarThickness: 56 }]},
+    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, grid }, x: { grid: { display: false } } }, plugins: { legend: { display: false } } }
+  });
+</script>
+{% endblock %}
