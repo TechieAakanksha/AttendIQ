@@ -104,6 +104,12 @@ static/attendance/css/  style.css (design system)
 ## Screenshots
 ![Dashboard](screenshots/Dashboard.png)
 ![Analytics](screenshots/Analytics.png)
+![Live_scan](screenshots/Live_scan.png)
+![Login](screenshots/Login.png)
+![manually_marking_attendance](screenshots/manually_marking_attendance.png)
+![Students](screenshots/Students.png)
+[Subjects](screenshots/Subjects.png)
+
 
 ## Configuration & deployment notes
 
