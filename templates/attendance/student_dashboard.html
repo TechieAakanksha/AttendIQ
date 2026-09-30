@@ -12,7 +12,10 @@
   <div><div class="eyebrow">Student workspace · {{ student.roll_number }}</div>
     <h1 class="page-title">Hello, {{ student.name }} 👋</h1>
     <p class="page-sub">{{ student.department }} · Semester {{ student.semester }} · Section {{ student.section }}</p></div>
-  <a href="{% url 'student_attendance' student.id %}" class="btn btn-primary"><i class="bi bi-funnel me-1"></i> View by date &amp; subject</a>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'my_qr' %}" class="btn btn-primary"><i class="bi bi-qr-code me-1"></i> My QR pass</a>
+    <a href="{% url 'student_attendance' student.id %}" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i> View by date &amp; subject</a>
+  </div>
 </div>
 
 {% if is_low %}

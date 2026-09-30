@@ -49,6 +49,17 @@ urlpatterns = [
     path("face/scan/", views.face_scan, name="face_scan"),
     path("face/scan/api/", views.face_scan_api, name="face_scan_api"),
     path("sessions/<int:session_id>/end/", views.end_session, name="end_session"),
+
+    # QR-code attendance
+    path("qr/scan/", views.qr_scan, name="qr_scan"),
+    path("qr/scan/api/", views.qr_scan_api, name="qr_scan_api"),
+    path("qr/session/", views.qr_session, name="qr_session"),
+    path("qr/session/image/", views.qr_session_image, name="qr_session_image"),
+    path("qr/session/status/", views.qr_session_status, name="qr_session_status"),
+    path("qr/checkin/", views.qr_checkin, name="qr_checkin"),
+    path("qr/me/", views.my_qr, name="my_qr"),
+    path("qr/cards/", views.qr_cards, name="qr_cards"),
+    path("qr/student/<int:student_id>.png", views.qr_student_image, name="qr_student_image"),
 ]
 
 if settings.DEBUG:

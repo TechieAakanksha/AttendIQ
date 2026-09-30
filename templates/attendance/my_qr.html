@@ -1,0 +1,22 @@
+{% extends 'attendance/base.html' %}
+{% block title %}My QR pass{% endblock %}
+{% block crumb %}My QR pass{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center"><div class="col-md-8 col-lg-5">
+  <div class="mb-4 text-center"><div class="eyebrow">Student pass</div><h1 class="page-title">My QR attendance pass</h1>
+    <p class="page-sub">Show this code to your teacher's scanner to be marked present.</p></div>
+  <div class="card-soft p-4 text-center" id="pass">
+    <div class="qr-pass-head"><i class="bi bi-person-bounding-box"></i> Attend<span>IQ</span></div>
+    <div class="qr-stage mx-auto my-3"><img src="{% url 'qr_student_image' student.id %}" alt="Your QR code" width="280" height="280"></div>
+    <h2 class="fs-4 fw-bold mb-0">{{ student.name }}</h2>
+    <div class="text-muted">{{ student.roll_number }}</div>
+    <div class="text-muted small">{{ student.department }} · Semester {{ student.semester }} · Section {{ student.section }}</div>
+  </div>
+  <div class="d-flex justify-content-center gap-2 mt-3 no-print">
+    <a class="btn btn-primary" href="{% url 'qr_student_image' student.id %}" download="attendiq-{{ student.roll_number }}.png"><i class="bi bi-download me-1"></i> Download</a>
+    <button class="btn btn-outline-primary" onclick="window.print()"><i class="bi bi-printer me-1"></i> Print</button>
+  </div>
+  <p class="small text-muted text-center mt-3 no-print"><i class="bi bi-shield-lock text-primary me-1"></i> This code is personal and digitally signed. Don't share it — your teacher's scanner marks attendance for whoever shows it.</p>
+</div></div>
+{% endblock %}

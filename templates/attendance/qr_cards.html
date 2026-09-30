@@ -1,0 +1,33 @@
+{% extends 'attendance/base.html' %}
+{% block title %}QR ID cards{% endblock %}
+{% block crumb %}QR ID cards{% endblock %}
+
+{% block content %}
+<div class="page-head no-print">
+  <div><div class="eyebrow">Class management</div><h1 class="page-title">QR ID cards</h1>
+    <p class="page-sub">Print these and hand them to students, or let students open their own pass from their dashboard.</p></div>
+  <div class="d-flex flex-wrap gap-2">
+    <form method="get" class="d-flex gap-2 m-0">
+      <select name="section" class="form-select" onchange="this.form.submit()" aria-label="Section">
+        <option value="">All sections</option>
+        {% for sec in sections %}<option value="{{ sec }}" {% if sec == section %}selected{% endif %}>Section {{ sec }}</option>{% endfor %}
+      </select>
+    </form>
+    <button class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer me-1"></i> Print cards</button>
+  </div>
+</div>
+
+<div class="qr-card-grid">
+  {% for s in students %}
+  <div class="qr-card">
+    <div class="qr-pass-head"><i class="bi bi-person-bounding-box"></i> Attend<span>IQ</span></div>
+    <img src="{% url 'qr_student_image' s.id %}" alt="QR for {{ s.name }}" width="170" height="170" loading="lazy">
+    <div class="fw-bold">{{ s.name }}</div>
+    <div class="text-muted small">{{ s.roll_number }} · Sec {{ s.section }}</div>
+    <div class="text-muted small">{{ s.department }} · Sem {{ s.semester }}</div>
+  </div>
+  {% empty %}
+  <div class="card-soft p-5 w-100"><div class="empty-state"><i class="bi bi-people"></i>No students yet. <a href="{% url 'add_student' %}">Add students</a> to generate QR cards.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

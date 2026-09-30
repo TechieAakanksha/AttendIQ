@@ -1,0 +1,20 @@
+{% extends 'attendance/base.html' %}
+{% block title %}QR check-in{% endblock %}
+{% block crumb %}QR check-in{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center"><div class="col-md-8 col-lg-5">
+  <div class="card-soft p-5 text-center">
+    <div class="checkin-icon {% if ok %}ok{% else %}fail{% endif %}"><i class="bi {% if ok %}bi-check-lg{% else %}bi-x-lg{% endif %}"></i></div>
+    <h1 class="page-title mt-3">{{ title }}</h1>
+    <p class="text-muted">{{ message }}</p>
+    {% if session %}
+      <div class="p-3 rounded-3 text-start small mb-3" style="background:var(--surface-2);border:1px solid var(--line)">
+        <div><strong>{{ session.course_code }}</strong> · {{ session.course_name }}</div>
+        <div class="text-muted">Room {{ session.room }} · {% now "d M Y, H:i" %}</div>
+      </div>
+    {% endif %}
+    <a href="{% url 'dashboard' %}" class="btn btn-primary"><i class="bi bi-grid-1x2 me-1"></i> Go to my dashboard</a>
+  </div>
+</div></div>
+{% endblock %}

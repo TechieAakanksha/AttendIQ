@@ -9,6 +9,8 @@ A full-stack **Django** web application that automates classroom attendance usin
 **Teacher / admin**
 - Dashboard with KPIs, 7-day trend, department chart, low-attendance alerts and live-session status
 - **Live face scan** — webcam frames are recognised on the server and attendance is logged once per session
+- **QR attendance (two modes)** — scan student QR passes with a camera, or project a rotating class QR that students scan with their phones
+- **Printable QR ID cards** for the whole class, and a personal *My QR pass* page for every student
 - **End session & mark absentees** — students who were not scanned are recorded as absent automatically
 - Manual attendance marking by subject / section / date (re-saving edits records, never duplicates them)
 - Student management (add, edit, delete), face enrollment with automatic face-quality validation
@@ -35,6 +37,17 @@ A full-stack **Django** web application that automates classroom attendance usin
 | Face recognition | OpenCV (Haar cascade detection + LBPH recognizer), NumPy, Pillow |
 | Frontend | Bootstrap 5.3, Bootstrap Icons, Chart.js 4, vanilla JavaScript |
 | Database | SQLite (default; swappable in `settings.py`) |
+
+## QR-code attendance
+
+| Mode | Who scans | How it works |
+|---|---|---|
+| **A · Student pass** | Teacher's camera | Each student has a permanent, **digitally signed** QR (My QR pass, or a printed card). The teacher opens **QR attendance**, starts the camera, and each code shown is verified and marked present once per session. A typed roll number works as a fallback. |
+| **B · Session QR** | Student's phone | The teacher opens **Session QR** on the projector. The code contains a **time-limited signed link** and refreshes every 30 s (valid 2 min). The student scans it with the phone camera, signs in, and is marked present. |
+
+Security: signed payloads (Django `signing`) make forged QR codes useless; session tokens expire; a student is marked once per session; only students of the teacher's own class are accepted; every record stores its source (`qr`, `qr_self`, `qr_manual`) for auditing.
+
+**Demo tip for Mode B (phones):** run `python manage.py runserver 0.0.0.0:8000`, open the Session QR page from your laptop using its Wi-Fi address (for example `http://192.168.1.20:8000/qr/session/`), and make sure phones are on the same Wi-Fi. QR images are generated and read with OpenCV — no extra library needed.
 
 ## How face recognition works
 
@@ -108,7 +121,9 @@ static/attendance/css/  style.css (design system)
 ![Login](screenshots/login.png)
 ![Manually_marking_attendance](screenshots/Manually_marking_attendance.png)
 ![Students](screenshots/Students.png)
-[Subjects](screenshots/Subjects.png)
+![Subjects](screenshots/Subjects.png)
+![QR_Scan](screenshots/QR_Scan.png)
+
 
 
 ## Configuration & deployment notes
@@ -127,7 +142,7 @@ Then run `python manage.py collectstatic`, serve with HTTPS behind a production 
 
 - LBPH is lightweight and works well for small classes under decent lighting; larger deployments should move to embedding models (FaceNet/ArcFace) and add liveness detection against photo spoofing.
 - Encrypt face images at rest, add retention limits and consent records for production use.
-- Ideas: SMS/WhatsApp alerts, REST API + mobile app, multi-camera support, PDF reports.
+- Ideas: SMS/WhatsApp alerts, REST API + mobile app, multi-camera support, PDF reports, GPS/Wi-Fi geofencing for session QR.
 
 ## Privacy
 

@@ -25,11 +25,13 @@ SECRET_KEY = os.environ.get(
 if not DEBUG and SECRET_KEY.startswith("django-insecure"):
     raise RuntimeError("Set DJANGO_SECRET_KEY when running with DJANGO_DEBUG=0.")
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
-    if host.strip()
-]
+_hosts = os.environ.get("DJANGO_ALLOWED_HOSTS", "").strip()
+if _hosts:
+    ALLOWED_HOSTS = [h.strip() for h in _hosts.split(",") if h.strip()]
+elif DEBUG:
+    ALLOWED_HOSTS = ["*"]   # dev only: lets phones on the same Wi-Fi open the QR check-in link
+else:
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",

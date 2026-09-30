@@ -1,0 +1,73 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Session QR{% endblock %}
+{% block crumb %}Session QR{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow">{{ active_session.course_code }} · Room {{ active_session.room }}</div>
+    <h1 class="page-title">Session QR check-in</h1>
+    <p class="page-sub">Project this screen. Students scan it with their phone camera while signed in to AttendIQ.</p></div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <select id="subjectPicker" class="form-select" style="min-width:230px" aria-label="Subject">
+      {% for subject in subjects %}<option value="{{ subject.id }}" {% if selected_subject == subject.id|stringformat:'s' %}selected{% endif %}>{{ subject.code }} · {{ subject.name }}</option>
+      {% empty %}<option value="">No subjects yet</option>{% endfor %}
+    </select>
+    <a href="{% url 'qr_scan' %}" class="btn btn-outline-primary"><i class="bi bi-qr-code-scan me-1"></i> Scanner</a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card-soft p-4 text-center">
+      <div class="qr-stage"><img id="qrImg" alt="Session QR code" width="340" height="340"></div>
+      <div class="progress mt-3" style="height:6px"><div class="progress-bar" id="timerBar" style="width:100%;transition:width 1s linear"></div></div>
+      <div class="text-muted small mt-2">Code refreshes automatically every {{ refresh_seconds }} seconds · <span id="timerText">{{ refresh_seconds }}</span>s</div>
+      <div class="mt-3 p-3 rounded-3 small text-start" style="background:var(--primary-50);color:var(--text-2)">
+        <strong><i class="bi bi-wifi text-primary me-1"></i> Phones must reach this server.</strong>
+        Open this page using your computer's Wi-Fi address (e.g. <code>http://192.168.x.x:8000/qr/session/</code>) and start the server with
+        <code>python manage.py runserver 0.0.0.0:8000</code>. You are currently on <code>{{ host }}</code>.
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="row g-3 mb-3">
+      <div class="col-6"><div class="stat-card stat-blue"><div class="stat-label">Students in class</div><div class="stat-value">{{ total_students }}</div><span class="stat-icon"><i class="bi bi-people-fill"></i></span></div></div>
+      <div class="col-6"><div class="stat-card stat-green"><div class="stat-label">Checked in</div><div class="stat-value" id="presentNow">{{ present_now }}</div><span class="stat-icon"><i class="bi bi-check-circle-fill"></i></span></div></div>
+    </div>
+    <div class="card-soft p-3">
+      <h2 class="section-title mb-2"><i class="bi bi-broadcast"></i> Live check-ins</h2>
+      <div id="feed"><div class="empty-state"><i class="bi bi-phone"></i>Waiting for students…</div></div>
+      <hr>
+      <form method="post" action="{% url 'end_session' active_session.id %}" class="d-flex flex-wrap gap-2 m-0">{% csrf_token %}
+        <button class="btn btn-sm btn-primary" name="mark_absent" value="1" onclick="return confirm('End this session and mark every student who did not check in as absent?')"><i class="bi bi-flag me-1"></i> End &amp; mark absentees</button>
+        <button class="btn btn-sm btn-outline-secondary" name="mark_absent" value="0" onclick="return confirm('End this session without marking absentees?')">End only</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const $ = id => document.getElementById(id);
+  const REFRESH = {{ refresh_seconds }}, subject = $('subjectPicker').value;
+  const q = subject ? '?subject=' + encodeURIComponent(subject) : '';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let left = REFRESH;
+
+  function loadQr() { $('qrImg').src = '{% url "qr_session_image" %}' + q + (q ? '&' : '?') + 'r=' + Date.now(); left = REFRESH; }
+  async function loadStatus() {
+    try {
+      const d = await (await fetch('{% url "qr_session_status" %}' + q, { credentials: 'same-origin' })).json();
+      $('presentNow').textContent = d.present_now;
+      if (d.recent.length) $('feed').innerHTML = d.recent.map(r =>
+        '<div class="feed-item d-flex justify-content-between"><div><span class="dot dot-matched"></span><strong class="small">' + esc(r.name) +
+        '</strong><div class="text-muted small ms-3">' + esc(r.roll) + '</div></div><span class="text-muted small">' + esc(r.time) + '</span></div>').join('');
+    } catch (e) { /* transient network error - try again next tick */ }
+  }
+  $('subjectPicker').addEventListener('change', e => { window.location.href = '?subject=' + encodeURIComponent(e.target.value); });
+  setInterval(() => { left -= 1; if (left <= 0) loadQr(); $('timerText').textContent = left; $('timerBar').style.width = (left / REFRESH * 100) + '%'; }, 1000);
+  setInterval(loadStatus, 4000);
+  loadQr(); loadStatus();
+</script>
+{% endblock %}

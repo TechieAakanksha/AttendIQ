@@ -29,7 +29,7 @@
           <td><span class="avatar me-2">{{ r.student.name|slice:":1"|upper }}</span>{{ r.student.name }} <small class="text-muted ms-1">{{ r.student.roll_number }}</small></td>
           <td>{% if r.session.subject %}{{ r.session.subject.code }} <small class="text-muted">{{ r.session.subject.name }}</small>{% else %}—{% endif %}</td>
           <td>{{ r.date|date:"d M Y" }}</td>
-          <td><span class="badge text-bg-secondary">{% if r.source == 'opencv' %}Face scan{% elif r.source == 'manual' %}Manual{% elif r.source == 'auto_absent' %}Auto-absent{% else %}{{ r.source|title }}{% endif %}</span>{% if r.confidence %} <small class="text-muted">{{ r.confidence }}%</small>{% endif %}</td>
+          <td><span class="badge text-bg-secondary">{% if r.source == 'opencv' %}Face scan{% elif r.source == 'qr' %}QR scan{% elif r.source == 'qr_self' %}Student QR{% elif r.source == 'qr_manual' %}Roll entry{% elif r.source == 'manual' %}Manual{% elif r.source == 'auto_absent' %}Auto-absent{% else %}{{ r.source|title }}{% endif %}</span>{% if r.confidence %} <small class="text-muted">{{ r.confidence }}%</small>{% endif %}</td>
           <td>{% if r.status %}<span class="badge text-bg-success">Present</span>{% else %}<span class="badge text-bg-danger">Absent</span>{% endif %}</td>
         </tr>
       {% empty %}

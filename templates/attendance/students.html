@@ -14,6 +14,7 @@
       <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search name, roll no, department…">
       <button class="btn btn-outline-primary" aria-label="Search"><i class="bi bi-search"></i></button>
     </form>
+    <a href="{% url 'qr_cards' %}" class="btn btn-outline-primary"><i class="bi bi-person-vcard me-1"></i> QR cards</a>
     <a href="{% url 'add_student' %}" class="btn btn-primary"><i class="bi bi-person-plus-fill me-1"></i> Add student</a>
   </div>
 </div>
@@ -35,6 +36,7 @@
               <small class="{% if s.low %}text-danger{% else %}text-muted{% endif %}">{{ s.percent }}%</small>{% endif %}</td>
           <td class="text-end text-nowrap">
             <a href="{% url 'face_enroll' s.id %}" class="btn btn-sm btn-outline-primary" title="Capture face samples"><i class="bi bi-camera"></i> {% if s.face_enrolled %}Update face{% else %}Enroll face{% endif %}</a>
+            <a href="{% url 'qr_cards' %}?student={{ s.id }}" class="btn btn-sm btn-outline-primary" title="QR card"><i class="bi bi-qr-code"></i></a>
             <a href="{% url 'student_attendance' s.id %}" class="btn btn-sm btn-outline-primary" title="View attendance"><i class="bi bi-eye"></i></a>
             <a href="{% url 'edit_student' s.id %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="bi bi-pencil"></i></a>
             <form method="post" action="{% url 'delete_student' s.id %}" class="d-inline" onsubmit="return confirm('Delete {{ s.name|escapejs }} and all their attendance and face data? This cannot be undone.')">{% csrf_token %}

@@ -1,0 +1,172 @@
+{% extends 'attendance/base.html' %}
+{% block title %}QR attendance{% endblock %}
+{% block crumb %}QR attendance{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow">{{ active_session.course_code }} · Room {{ active_session.room }}</div>
+    <h1 class="page-title">QR attendance scanner</h1>
+    <p class="page-sub">Students show their personal QR pass; point the camera at it and attendance is marked instantly.</p></div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <select id="subjectPicker" class="form-select" style="min-width:230px" aria-label="Subject">
+      {% for subject in subjects %}<option value="{{ subject.id }}" {% if selected_subject == subject.id|stringformat:'s' %}selected{% endif %}>{{ subject.code }} · {{ subject.name }}</option>
+      {% empty %}<option value="">No subjects yet</option>{% endfor %}
+    </select>
+    <a href="{% url 'qr_session' %}" class="btn btn-outline-primary"><i class="bi bi-display me-1"></i> Session QR</a>
+    <a href="{% url 'qr_cards' %}" class="btn btn-outline-primary"><i class="bi bi-person-vcard me-1"></i> Print QR cards</a>
+  </div>
+</div>
+
+{% if not subjects %}
+<div class="alert alert-warning app-alert"><i class="bi bi-info-circle me-2"></i>Add a subject first so scanned attendance is linked to a class. <a href="{% url 'add_subject' %}" class="fw-semibold">Add subject</a></div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6"><div class="stat-card stat-blue"><div class="stat-label">Students in class</div><div class="stat-value">{{ total_students }}</div><span class="stat-icon"><i class="bi bi-people-fill"></i></span></div></div>
+  <div class="col-6"><div class="stat-card stat-green"><div class="stat-label">Present now</div><div class="stat-value" id="presentNow">{{ present_now }}</div><span class="stat-icon"><i class="bi bi-check-circle-fill"></i></span></div></div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card-soft p-3">
+      <div class="d-flex justify-content-between align-items-center px-2 pb-3">
+        <div><h2 class="section-title"><i class="bi bi-qr-code-scan"></i> Scanner camera</h2><span class="text-muted small">Hold the QR 15–30 cm from the lens, steady and well lit</span></div>
+        <span id="state" class="badge rounded-pill text-bg-secondary">READY</span>
+      </div>
+      <div class="cam-box cam-rear ratio ratio-16x9">
+        <video id="video" autoplay muted playsinline></video>
+        <div id="placeholder" class="cam-placeholder"><div><i class="bi bi-qr-code-scan"></i>Connect a camera to start scanning</div></div>
+        <div class="qr-target" id="target"></div>
+        <canvas id="grab" class="d-none"></canvas>
+      </div>
+      <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
+        <button id="connect" class="btn btn-primary"><i class="bi bi-camera-video me-1"></i> Connect camera</button>
+        <button id="scan" class="btn btn-outline-primary" disabled><i class="bi bi-play-circle me-1"></i> Start scanning</button>
+        <span id="status" class="text-muted small">Waiting for camera permission</span>
+      </div>
+      <div id="result" class="result-banner mt-3 d-none" role="status"></div>
+
+      <hr>
+      <form id="manualForm" class="d-flex flex-wrap gap-2 align-items-end m-0">
+        <div class="flex-grow-1"><label class="form-label" for="roll">No QR? Enter roll number</label>
+          <input id="roll" class="form-control" placeholder="e.g. CS202601" autocomplete="off"></div>
+        <button class="btn btn-outline-primary" type="submit"><i class="bi bi-keyboard me-1"></i> Mark present</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card-soft p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div><h2 class="section-title">Scanned this session</h2><span class="text-muted small">{{ active_session.course_code }} · {{ active_session.course_name }}</span></div>
+        <span class="badge rounded-pill text-bg-success">Audit on</span>
+      </div>
+      <div id="events">
+        {% for r in recent %}
+          <div class="feed-item d-flex justify-content-between">
+            <div><span class="dot dot-matched"></span><strong class="small">{{ r.student.name }}</strong>
+              <div class="text-muted small ms-3">{{ r.student.roll_number }} · {% if r.source == 'qr_self' %}Student phone{% elif r.source == 'qr_manual' %}Manual entry{% else %}QR scan{% endif %}</div></div>
+            <span class="text-muted small">{{ r.created_at|date:'H:i:s' }}</span>
+          </div>
+        {% empty %}
+          <div id="empty" class="empty-state"><i class="bi bi-qr-code"></i>No QR scans yet</div>
+        {% endfor %}
+      </div>
+      <hr>
+      <form method="post" action="{% url 'end_session' active_session.id %}" class="d-flex flex-wrap gap-2 m-0">{% csrf_token %}
+        <button class="btn btn-sm btn-primary" name="mark_absent" value="1" onclick="return confirm('End this session and mark every student who was not scanned as absent?')"><i class="bi bi-flag me-1"></i> End &amp; mark absentees</button>
+        <button class="btn btn-sm btn-outline-secondary" name="mark_absent" value="0" onclick="return confirm('End this session without marking absentees?')">End only</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const $ = id => document.getElementById(id);
+  const video = $('video'), grab = $('grab'), connect = $('connect'), scan = $('scan'), state = $('state'), statusText = $('status'),
+        placeholder = $('placeholder'), result = $('result'), events = $('events'), subjectPicker = $('subjectPicker'), target = $('target');
+  const csrf = '{{ csrf_token }}', API = '{% url "qr_scan_api" %}';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let stream = null, timer = null, busy = false, lastRoll = '', lastAt = 0;
+
+  function setState(cls, text) { state.className = 'badge rounded-pill ' + cls; state.textContent = text; }
+  function stopScan() { if (timer) { clearInterval(timer); timer = null; } target.classList.remove('active'); }
+  function beep(ok) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)(), osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.frequency.value = ok ? 880 : 300; gain.gain.value = 0.06; osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); setTimeout(() => { osc.stop(); ctx.close(); }, ok ? 120 : 220);
+    } catch (e) { /* sound is optional */ }
+  }
+
+  subjectPicker.addEventListener('change', () => { stopScan(); window.location.href = '?subject=' + encodeURIComponent(subjectPicker.value); });
+
+  connect.onclick = async () => {
+    const tryGet = c => navigator.mediaDevices.getUserMedia(c);
+    try {
+      try { stream = await tryGet({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); }
+      catch (e) { stream = await tryGet({ video: true, audio: false }); }
+      video.srcObject = stream; await video.play();
+      scan.disabled = false; placeholder.classList.add('d-none'); connect.disabled = true;
+      connect.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Camera connected';
+      setState('text-bg-success', 'CONNECTED'); statusText.textContent = 'Camera ready · start scanning';
+    } catch (e) {
+      setState('text-bg-danger', 'OFFLINE'); statusText.textContent = 'Camera unavailable — allow permission (localhost/HTTPS required)';
+    }
+  };
+
+  scan.onclick = () => {
+    if (timer) { stopScan(); scan.innerHTML = '<i class="bi bi-play-circle me-1"></i> Resume scanning'; setState('text-bg-warning', 'PAUSED'); statusText.textContent = 'Scanning paused'; return; }
+    timer = setInterval(sendFrame, 800); target.classList.add('active');
+    scan.innerHTML = '<i class="bi bi-pause-circle me-1"></i> Pause scanning';
+    setState('text-bg-primary', 'SCANNING'); statusText.textContent = 'Looking for QR codes…'; sendFrame();
+  };
+
+  async function post(body) {
+    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify(body) });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.message || 'Request failed');
+    return data;
+  }
+
+  async function sendFrame() {
+    if (!video.videoWidth || busy) return;
+    busy = true;
+    const scale = Math.min(1, 800 / video.videoWidth);      // NOT mirrored: QR codes must stay readable
+    grab.width = Math.round(video.videoWidth * scale); grab.height = Math.round(video.videoHeight * scale);
+    grab.getContext('2d').drawImage(video, 0, 0, grab.width, grab.height);
+    try { show(await post({ image: grab.toDataURL('image/jpeg', 0.85), subject: subjectPicker.value })); }
+    catch (e) { show({ result: 'error', message: e.message }); }
+    finally { busy = false; }
+  }
+
+  $('manualForm').addEventListener('submit', async ev => {
+    ev.preventDefault(); const roll = $('roll').value.trim(); if (!roll) return;
+    try { show(await post({ roll, subject: subjectPicker.value })); $('roll').value = ''; }
+    catch (e) { show({ result: 'error', message: e.message }); }
+  });
+
+  function show(data) {
+    const kind = data.result || 'error';
+    if (kind === 'no_code') { statusText.textContent = 'Looking for QR codes…'; return; }
+    const now = Date.now();
+    if (data.roll_number && data.roll_number === lastRoll && now - lastAt < 4000) return;   // same QR still in view
+    lastRoll = data.roll_number || ''; lastAt = now;
+    const cls = { matched: 'result-matched', duplicate: 'result-review', invalid: 'result-unknown', unknown: 'result-unknown' }[kind] || 'result-error';
+    result.className = 'result-banner mt-3 ' + cls;
+    const title = data.student ? data.student + ' · ' + (data.roll_number || '') : (kind === 'error' ? 'Error' : 'Not recognised');
+    result.innerHTML = '<strong>' + esc(title) + '</strong><div class="small mt-1">' + esc(data.message || '') + '</div>';
+    if (typeof data.present_now === 'number') $('presentNow').textContent = data.present_now;
+    beep(kind === 'matched');
+    if (kind !== 'matched') return;
+    const empty = $('empty'); if (empty) empty.remove();
+    const row = document.createElement('div'); row.className = 'feed-item d-flex justify-content-between';
+    row.innerHTML = '<div><span class="dot dot-matched"></span><strong class="small">' + esc(data.student) + '</strong><div class="text-muted small ms-3">' + esc(data.roll_number) + ' · just now</div></div><span class="text-muted small">now</span>';
+    events.prepend(row);
+  }
+
+  window.addEventListener('beforeunload', () => { stopScan(); if (stream) stream.getTracks().forEach(t => t.stop()); });
+</script>
+{% endblock %}

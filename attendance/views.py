@@ -11,6 +11,7 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
+from django.core import signing
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
@@ -23,6 +24,10 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
 from .face_utils import has_face, match_frame
+from .qr_utils import (
+    SESSION_QR_REFRESH_SECONDS, make_qr_png, read_qr, session_checkin_url,
+    session_id_from_token, student_id_from_payload, student_qr_payload,
+)
 from .models import (
     Attendance, CourseSession, FaceSample, Profile, ScanEvent,
     Student, Subject, TeachingAssignment,
@@ -759,6 +764,212 @@ def end_session(request, session_id):
     else:
         messages.success(request, "Session ended and audit trail saved.")
     return redirect("dashboard")
+
+
+# --------------------------------------------------------------------------- #
+# QR-code attendance
+# --------------------------------------------------------------------------- #
+def mark_present(student, session, source, confidence=None):
+    """Mark a student present once per session. Returns True when a new mark was made."""
+    record, created = Attendance.objects.get_or_create(
+        student=student, date=timezone.localdate(), session=session,
+        defaults={"status": True, "source": source, "confidence": confidence},
+    )
+    if not created and not record.status:
+        record.status, record.source = True, source
+        record.save(update_fields=["status", "source"])
+        return True
+    return created
+
+
+def pick_session(request):
+    """Return (subjects queryset, live session) for the subject chosen via ?subject=."""
+    subjects_qs = scoped_subjects(request.user)
+    subject_id = parse_int(request.GET.get("subject"))
+    subject = subjects_qs.filter(id=subject_id).first() if subject_id else None
+    if not subject:
+        live = CourseSession.objects.filter(teacher=request.user, status="live").select_related("subject").first()
+        if live and live.subject_id and subjects_qs.filter(id=live.subject_id).exists():
+            subject = live.subject
+        else:
+            subject = subjects_qs.first()
+    return subjects_qs, live_session_for(request.user, subject)
+
+
+def png_response(data):
+    response = HttpResponse(data, content_type="image/png")
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@teacher_required
+def qr_scan(request):
+    """Teacher scans student ID QR codes with a camera."""
+    subjects_qs, session = pick_session(request)
+    scope = scoped_students(request.user)
+    return render(request, "attendance/qr_scan.html", {
+        "active_session": session,
+        "subjects": subjects_qs,
+        "selected_subject": str(session.subject_id or ""),
+        "total_students": scope.count(),
+        "present_now": Attendance.objects.filter(session=session, status=True).count(),
+        "recent": Attendance.objects.filter(session=session, source__startswith="qr").select_related("student").order_by("-created_at")[:10],
+    })
+
+
+@teacher_required
+@require_http_methods(["POST"])
+def qr_scan_api(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("payload must be an object")
+        subject_id = parse_int(payload.get("subject"))
+        roll = str(payload.get("roll", "")).strip()
+        frame = b""
+        if not roll:
+            frame = base64.b64decode(str(payload.get("image", "")).split(",", 1)[-1])
+    except (ValueError, TypeError, binascii.Error, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "message": "Invalid request."}, status=400)
+    if not roll and (not frame or len(frame) > MAX_FRAME_BYTES):
+        return JsonResponse({"ok": False, "message": "Frame is empty or too large."}, status=400)
+
+    subject = scoped_subjects(request.user).filter(id=subject_id).first() if subject_id else None
+    session = live_session_for(request.user, subject or scoped_subjects(request.user).first())
+    pool = scoped_students(request.user)
+
+    student, source = None, "qr"
+    if roll:                                   # manual fallback: type the roll number
+        source = "qr_manual"
+        student = pool.filter(roll_number__iexact=roll).first()
+        if not student:
+            return JsonResponse({"ok": True, "result": "unknown", "message": f"No student with roll number {roll} in your classes."})
+    else:
+        try:
+            text = read_qr(frame)
+        except Exception as exc:               # corrupt image data
+            return JsonResponse({"ok": False, "message": f"Frame could not be read: {exc}"}, status=400)
+        if not text:
+            return JsonResponse({"ok": True, "result": "no_code", "message": "Point the camera at a student QR code."})
+        student_id = student_id_from_payload(text)
+        if student_id is None:
+            return JsonResponse({"ok": True, "result": "invalid", "message": "This is not a valid AttendIQ student QR code."})
+        student = pool.filter(id=student_id).first()
+        if not student:
+            return JsonResponse({"ok": True, "result": "unknown", "message": "This student is not in your classes."})
+
+    created = mark_present(student, session, source)
+    return JsonResponse({
+        "ok": True,
+        "result": "matched" if created else "duplicate",
+        "message": "Attendance marked present." if created else "Already marked present for this session.",
+        "student": student.name,
+        "roll_number": student.roll_number,
+        "present_now": Attendance.objects.filter(session=session, status=True).count(),
+    })
+
+
+@login_required
+def qr_student_image(request, student_id):
+    """PNG of a student's permanent ID QR. Students see their own; teachers see their class."""
+    student = get_object_or_404(Student, id=student_id)
+    role = current_role(request.user)
+    owner = current_student(request.user)
+    allowed = (role == "student" and owner and owner.id == student.id) or (
+        role == "teacher" and scoped_students(request.user).filter(id=student.id).exists()
+    )
+    if not allowed:
+        return HttpResponse(status=403)
+    response = HttpResponse(make_qr_png(student_qr_payload(student)), content_type="image/png")
+    response["Cache-Control"] = "private, max-age=3600"
+    return response
+
+
+@login_required
+def my_qr(request):
+    student = current_student(request.user)
+    if current_role(request.user) != "student" or not student:
+        messages.info(request, "QR passes belong to students. Teachers can print them from the Students page.")
+        return redirect("qr_cards" if current_role(request.user) == "teacher" else "dashboard")
+    return render(request, "attendance/my_qr.html", {"student": student})
+
+
+@teacher_required
+def qr_cards(request):
+    """Printable QR ID cards for the class (or a single student)."""
+    qs = scoped_students(request.user).order_by("roll_number")
+    only = parse_int(request.GET.get("student"))
+    if only:
+        qs = qs.filter(id=only)
+    section = request.GET.get("section", "").strip()
+    if section:
+        qs = qs.filter(section__iexact=section)
+    sections = scoped_students(request.user).values_list("section", flat=True).distinct().order_by("section")
+    return render(request, "attendance/qr_cards.html", {"students": qs, "sections": sections, "section": section, "only": only})
+
+
+@teacher_required
+def qr_session(request):
+    """Projector page: a rotating QR that students scan with their phones."""
+    subjects_qs, session = pick_session(request)
+    return render(request, "attendance/qr_session.html", {
+        "active_session": session,
+        "subjects": subjects_qs,
+        "selected_subject": str(session.subject_id or ""),
+        "total_students": scoped_students(request.user).count(),
+        "present_now": Attendance.objects.filter(session=session, status=True).count(),
+        "refresh_seconds": SESSION_QR_REFRESH_SECONDS,
+        "host": request.get_host(),
+    })
+
+
+@teacher_required
+def qr_session_image(request):
+    _, session = pick_session(request)
+    return png_response(make_qr_png(session_checkin_url(request, session)))
+
+
+@teacher_required
+def qr_session_status(request):
+    _, session = pick_session(request)
+    rows = Attendance.objects.filter(session=session, status=True).select_related("student").order_by("-created_at")
+    return JsonResponse({
+        "present_now": rows.count(),
+        "recent": [
+            {"name": r.student.name, "roll": r.student.roll_number, "time": timezone.localtime(r.created_at).strftime("%H:%M:%S")}
+            for r in rows[:8]
+        ],
+    })
+
+
+@login_required
+def qr_checkin(request):
+    """Student opens the link inside the projected QR and is marked present."""
+    def result(ok, title, message, session=None):
+        return render(request, "attendance/qr_checkin.html", {"ok": ok, "title": title, "message": message, "session": session})
+
+    if current_role(request.user) != "student":
+        return result(False, "Students only", "You are signed in as a teacher. Only students can check in with this QR code.")
+    student = current_student(request.user)
+    if not student:
+        return result(False, "No student record", "Your account is not linked to a student record. Please ask your teacher.")
+    try:
+        session_id = session_id_from_token(request.GET.get("t", ""))
+    except signing.SignatureExpired:
+        return result(False, "QR code expired", "This QR code is no longer valid. Scan the code currently shown on the screen.")
+    except signing.BadSignature:
+        return result(False, "Invalid QR code", "This is not a valid AttendIQ check-in code.")
+    session = CourseSession.objects.filter(id=session_id).select_related("subject").first() if session_id else None
+    if not session:
+        return result(False, "Session not found", "This class session no longer exists.")
+    if session.status != "live":
+        return result(False, "Session ended", "This class session has already ended.", session)
+    if not scoped_students(session.teacher).filter(id=student.id).exists():
+        return result(False, "Not in this class", "You are not enrolled in this teacher's class.", session)
+    created = mark_present(student, session, "qr_self")
+    if created:
+        return result(True, "You're marked present", "Your attendance has been recorded.", session)
+    return result(True, "Already checked in", "You were already marked present for this session.", session)
 
 
 # --------------------------------------------------------------------------- #

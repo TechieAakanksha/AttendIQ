@@ -26,18 +26,20 @@
       <a class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-grid-1x2-fill"></i> Overview</a>
       {% if is_teacher %}
         <a class="{% if request.resolver_match.url_name == 'face_scan' %}active{% endif %}" href="{% url 'face_scan' %}"><i class="bi bi-camera-video-fill"></i> Live face scan <b class="nav-badge">LIVE</b></a>
+        <a class="{% if request.resolver_match.url_name in 'qr_scan,qr_session' %}active{% endif %}" href="{% url 'qr_scan' %}"><i class="bi bi-qr-code-scan"></i> QR attendance</a>
         <a class="{% if request.resolver_match.url_name == 'attendance' %}active{% endif %}" href="{% url 'attendance' %}"><i class="bi bi-check2-square"></i> Mark attendance</a>
         <a class="{% if request.resolver_match.url_name == 'attendance_records' %}active{% endif %}" href="{% url 'attendance_records' %}"><i class="bi bi-clock-history"></i> Records</a>
         <a class="{% if request.resolver_match.url_name == 'attendance_report' %}active{% endif %}" href="{% url 'attendance_report' %}"><i class="bi bi-graph-up-arrow"></i> Analytics</a>
       {% elif nav_student %}
         <a class="{% if request.resolver_match.url_name == 'student_attendance' %}active{% endif %}" href="{% url 'student_attendance' nav_student.id %}"><i class="bi bi-person-check-fill"></i> My attendance</a>
+        <a class="{% if request.resolver_match.url_name == 'my_qr' %}active{% endif %}" href="{% url 'my_qr' %}"><i class="bi bi-qr-code"></i> My QR pass</a>
       {% endif %}
     </nav>
 
     {% if is_teacher %}
     <div class="nav-label">Class management</div>
     <nav class="side-nav">
-      <a class="{% if request.resolver_match.url_name in 'students,add_student,edit_student,face_enroll' %}active{% endif %}" href="{% url 'students' %}"><i class="bi bi-people-fill"></i> Students</a>
+      <a class="{% if request.resolver_match.url_name in 'students,add_student,edit_student,face_enroll,qr_cards' %}active{% endif %}" href="{% url 'students' %}"><i class="bi bi-people-fill"></i> Students</a>
       <a class="{% if request.resolver_match.url_name in 'subjects,add_subject,edit_subject' %}active{% endif %}" href="{% url 'subjects' %}"><i class="bi bi-book-fill"></i> Subjects</a>
       <a class="{% if request.resolver_match.url_name in 'schedules,add_schedule' %}active{% endif %}" href="{% url 'schedules' %}"><i class="bi bi-calendar3"></i> Class schedule</a>
       <a class="{% if request.resolver_match.url_name == 'manage_users' %}active{% endif %}" href="{% url 'manage_users' %}"><i class="bi bi-person-gear"></i> Manage user IDs</a>
